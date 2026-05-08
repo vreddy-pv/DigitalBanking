@@ -1,0 +1,101 @@
+<div class="login-container" [attr.data-theme]="currentTheme$ | async">
+  <div class="login-box">
+    <!-- Logo -->
+    <div class="login-header">
+      <h1>💳 Digital Banking</h1>
+      <p>Secure Financial Management</p>
+    </div>
+
+    <!-- Error Message -->
+    <div class="error-message" *ngIf="errorMessage">
+      <span class="error-icon">⚠️</span>
+      <p>{{ errorMessage }}</p>
+    </div>
+
+    <!-- Login Form -->
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
+      <!-- Email Field -->
+      <div class="form-group">
+        <label for="email" class="form-label">Email Address</label>
+        <input
+          id="email"
+          type="email"
+          formControlName="email"
+          class="form-input"
+          placeholder="Enter your email"
+          [class.error]="email?.invalid && email?.touched"
+          autocomplete="email"
+        />
+        <span class="error-text" *ngIf="email?.invalid && email?.touched">
+          <span *ngIf="email?.errors?.['required']">Email is required</span>
+          <span *ngIf="email?.errors?.['email']">Please enter a valid email</span>
+        </span>
+      </div>
+
+      <!-- Password Field -->
+      <div class="form-group">
+        <label for="password" class="form-label">Password</label>
+        <div class="password-input-wrapper">
+          <input
+            id="password"
+            [type]="showPassword ? 'text' : 'password'"
+            formControlName="password"
+            class="form-input"
+            placeholder="Enter your password"
+            [class.error]="password?.invalid && password?.touched"
+            autocomplete="current-password"
+          />
+          <button
+            type="button"
+            class="password-toggle"
+            (click)="togglePasswordVisibility()"
+            tabindex="-1"
+          >
+            {{ showPassword ? '👁️' : '👁️‍🗨️' }}
+          </button>
+        </div>
+        <span class="error-text" *ngIf="password?.invalid && password?.touched">
+          <span *ngIf="password?.errors?.['required']">Password is required</span>
+          <span *ngIf="password?.errors?.['minlength']">Password must be at least 6 characters</span>
+        </span>
+      </div>
+
+      <!-- Remember Me -->
+      <div class="form-group checkbox">
+        <input
+          id="rememberMe"
+          type="checkbox"
+          formControlName="rememberMe"
+          class="form-checkbox"
+        />
+        <label for="rememberMe" class="checkbox-label">Remember me</label>
+      </div>
+
+      <!-- Submit Button -->
+      <button
+        type="submit"
+        class="login-button"
+        [disabled]="loginForm.invalid || isLoading"
+      >
+        <span *ngIf="!isLoading">Sign In</span>
+        <span *ngIf="isLoading" class="loading-spinner">
+          Loading...
+        </span>
+      </button>
+    </form>
+
+    <!-- Footer -->
+    <div class="login-footer">
+      <p>
+        Don't have an account?
+        <a href="#" class="signup-link">Sign up here</a>
+      </p>
+      <p>
+        <a href="#" class="forgot-link">Forgot your password?</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Background Gradient -->
+  <div class="background-gradient"></div>
+</div>

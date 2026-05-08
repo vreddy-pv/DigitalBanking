@@ -1,0 +1,71 @@
+<div class="layout-container">
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar" [attr.data-theme]="currentTheme$ | async">
+    <div class="sidebar-header">
+      <div class="logo">
+        <h1>💳 Digital Banking</h1>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <ul>
+        <li *ngFor="let item of navigationItems">
+          <a [routerLink]="item.route" routerLinkActive="active">
+            <span class="icon">{{ item.icon }}</span>
+            <span class="label">{{ item.label }}</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info" *ngIf="(currentUser$ | async) as user">
+        <div class="user-avatar">{{ user.fullName.charAt(0) }}</div>
+        <div class="user-details">
+          <p class="user-name">{{ user.fullName }}</p>
+          <p class="user-email">{{ user.email }}</p>
+        </div>
+      </div>
+      <button class="logout-btn" (click)="logout()">Logout</button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <h2>Digital Banking Platform</h2>
+      </div>
+
+      <div class="header-right">
+        <!-- Theme Toggle -->
+        <button class="icon-btn" (click)="toggleTheme()" title="Toggle Theme">
+          {{ (currentTheme$ | async) === 'light' ? '🌙' : '☀️' }}
+        </button>
+
+        <!-- Notifications -->
+        <div class="notification-container">
+          <button class="icon-btn notification-btn" (click)="toggleNotifications()">
+            🔔
+            <span class="notification-badge" *ngIf="unreadNotificationCount > 0">
+              {{ unreadNotificationCount }}
+            </span>
+          </button>
+        </div>
+
+        <!-- User Menu -->
+        <div class="user-menu">
+          <button class="user-btn" *ngIf="(currentUser$ | async) as user">
+            {{ user.fullName }}
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Router Outlet for MFEs -->
+    <main class="content">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>
