@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.config import settings
+from app.models.notification import Notification  # Import models to register them with Base
 
 
 @pytest.fixture(scope="session")
