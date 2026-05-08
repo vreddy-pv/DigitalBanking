@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+.npm
+
+# Editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Angular
+dist
+.angular
+
+# Build
+coverage
+.nyc_output
+
+# Documentation
+README.md
+*.md
+
+# Tests
+e2e
+cypress
+.cypress
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Development
+src
+karma.conf.js
+tsconfig.json
+angular.json

@@ -1,0 +1,454 @@
+version: '3.9'
+
+services:
+  # ===========================================================================
+  # INFRASTRUCTURE SERVICES
+  # ===========================================================================
+
+  # PostgreSQL Database for all microservices
+  postgres:
+    image: postgres:15-alpine
+    container_name: banking-postgres
+    environment:
+      POSTGRES_USER: banking_user
+      POSTGRES_PASSWORD: banking_password
+      POSTGRES_DB: digital_banking
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banking_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banking-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: banking-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banking-network
+
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: banking-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # BACKEND MICROSERVICES
+  # ===========================================================================
+
+  # Auth Service (Port 8001)
+  auth-service:
+    image: auth-service:latest
+    container_name: banking-auth-service
+    build:
+      context: ../notification-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://banking_user:banking_password@postgres:5432/digital_banking
+      JWT_SECRET: your-jwt-secret-key
+      JWT_EXPIRY: 3600
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # Account Service (Port 8002)
+  account-service:
+    image: account-service:latest
+    container_name: banking-account-service
+    build:
+      context: ../
+      dockerfile: account-service/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://banking_user:banking_password@postgres:5432/digital_banking
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth-service:8001
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # Transaction Service (Port 8003)
+  transaction-service:
+    image: transaction-service:latest
+    container_name: banking-transaction-service
+    build:
+      context: ../
+      dockerfile: transaction-service/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://banking_user:banking_password@postgres:5432/digital_banking
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379
+      ACCOUNT_SERVICE_URL: http://account-service:8002
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # Ledger Service (Port 8004)
+  ledger-service:
+    image: ledger-service:latest
+    container_name: banking-ledger-service
+    build:
+      context: ../
+      dockerfile: ledger-service/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://banking_user:banking_password@postgres:5432/digital_banking
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379
+      TRANSACTION_SERVICE_URL: http://transaction-service:8003
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # Notification Service (Port 8006) - Python FastAPI
+  notification-service:
+    image: notification-service:latest
+    container_name: banking-notification-service
+    build:
+      context: ../notification-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://banking_user:banking_password@postgres:5432/digital_banking
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: ${NOTIFICATION_EMAIL}
+      SMTP_PASSWORD: ${NOTIFICATION_PASSWORD}
+    ports:
+      - "8006:8006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # API Gateway (Port 8000)
+  api-gateway:
+    image: api-gateway:latest
+    container_name: banking-api-gateway
+    build:
+      context: ../
+      dockerfile: api-gateway/Dockerfile
+    environment:
+      ACCOUNT_SERVICE_URL: http://account-service:8002
+      TRANSACTION_SERVICE_URL: http://transaction-service:8003
+      LEDGER_SERVICE_URL: http://ledger-service:8004
+      AUTH_SERVICE_URL: http://auth-service:8001
+      NOTIFICATION_SERVICE_URL: http://notification-service:8006
+    ports:
+      - "8000:8000"
+    depends_on:
+      - account-service
+      - transaction-service
+      - ledger-service
+      - auth-service
+      - notification-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # FRONTEND SERVICES
+  # ===========================================================================
+
+  # Shell Application (Port 4200)
+  shell-app:
+    image: digital-banking-shell:latest
+    container_name: banking-shell-app
+    build:
+      context: ./shell-app
+      dockerfile: Dockerfile
+      target: runtime
+    environment:
+      API_GATEWAY_URL: http://api-gateway:8000
+      ACCOUNT_MFE_URL: http://account-mfe:4201
+      TRANSACTION_MFE_URL: http://transaction-mfe:4202
+      TRANSFER_MFE_URL: http://transfer-mfe:4203
+      NOTIFICATION_MFE_URL: http://notification-mfe:4204
+      SETTINGS_MFE_URL: http://settings-mfe:4205
+    ports:
+      - "4200:4200"
+    depends_on:
+      - account-mfe
+      - transaction-mfe
+      - transfer-mfe
+      - notification-mfe
+      - settings-mfe
+      - api-gateway
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # Account Micro Frontend (Port 4201)
+  account-mfe:
+    image: digital-banking-account-mfe:latest
+    container_name: banking-account-mfe
+    build:
+      context: ./account-mfe
+      dockerfile: ../Dockerfile.mfe
+      target: runtime
+    environment:
+      API_GATEWAY_URL: http://api-gateway:8000
+      NODE_ENV: production
+    ports:
+      - "4201:4200"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # Transaction Micro Frontend (Port 4202)
+  transaction-mfe:
+    image: digital-banking-transaction-mfe:latest
+    container_name: banking-transaction-mfe
+    build:
+      context: ./transaction-mfe
+      dockerfile: ../Dockerfile.mfe
+      target: runtime
+    environment:
+      API_GATEWAY_URL: http://api-gateway:8000
+      NODE_ENV: production
+    ports:
+      - "4202:4200"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # Transfer Micro Frontend (Port 4203)
+  transfer-mfe:
+    image: digital-banking-transfer-mfe:latest
+    container_name: banking-transfer-mfe
+    build:
+      context: ./transfer-mfe
+      dockerfile: ../Dockerfile.mfe
+      target: runtime
+    environment:
+      API_GATEWAY_URL: http://api-gateway:8000
+      NODE_ENV: production
+    ports:
+      - "4203:4200"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # Notification Micro Frontend (Port 4204)
+  notification-mfe:
+    image: digital-banking-notification-mfe:latest
+    container_name: banking-notification-mfe
+    build:
+      context: ./notification-mfe
+      dockerfile: ../Dockerfile.mfe
+      target: runtime
+    environment:
+      API_GATEWAY_URL: http://api-gateway:8000
+      NODE_ENV: production
+    ports:
+      - "4204:4200"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # Settings Micro Frontend (Port 4205)
+  settings-mfe:
+    image: digital-banking-settings-mfe:latest
+    container_name: banking-settings-mfe
+    build:
+      context: ./settings-mfe
+      dockerfile: ../Dockerfile.mfe
+      target: runtime
+    environment:
+      API_GATEWAY_URL: http://api-gateway:8000
+      NODE_ENV: production
+    ports:
+      - "4205:4200"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - banking-network
+
+  # ===========================================================================
+  # TESTING & MONITORING
+  # ===========================================================================
+
+  # Cypress E2E Testing Container
+  cypress:
+    image: cypress:latest
+    container_name: banking-cypress-tests
+    working_dir: /e2e
+    volumes:
+      - ./cypress:/e2e/cypress
+      - ./cypress.config.ts:/e2e/cypress.config.ts
+      - ./package.json:/e2e/package.json
+    environment:
+      CYPRESS_baseUrl: http://shell-app:4200
+      CYPRESS_apiUrl: http://api-gateway:8000
+    depends_on:
+      shell-app:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - banking-network
+    profiles:
+      - test
+
+  # Prometheus Monitoring (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: banking-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - banking-network
+    profiles:
+      - monitoring
+
+  # Grafana Dashboard (Optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: banking-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - banking-network
+    profiles:
+      - monitoring
+
+# ===========================================================================
+# VOLUMES
+# ===========================================================================
+volumes:
+  postgres_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# ===========================================================================
+# NETWORKS
+# ===========================================================================
+networks:
+  banking-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
