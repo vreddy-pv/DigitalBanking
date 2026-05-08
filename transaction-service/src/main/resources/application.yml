@@ -36,6 +36,11 @@ management:
     health:
       show-details: always
 
+jwt:
+  secret: my-super-secret-key-for-jwt-tokens-please-change-in-production-minimum-256-bits
+  expiration: 900000
+  refresh-expiration: 604800000
+
 logging:
   level:
     root: INFO
