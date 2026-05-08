@@ -1,0 +1,13 @@
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\AuthServiceApplication.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\config\SecurityConfig.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\controller\AuthController.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\dto\AuthResponse.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\dto\LoginRequest.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\dto\RegisterRequest.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\entity\User.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\entity\UserRole.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\exception\GlobalExceptionHandler.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\repository\UserRepository.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\security\JwtTokenProvider.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\service\AuthService.java
+C:\Veera\AI\agents\DigitalBanking\auth-service\src\main\java\com\digitalbanking\auth\service\CustomUserDetailsService.java

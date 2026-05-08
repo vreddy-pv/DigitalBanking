@@ -1,0 +1,136 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-gl-accounts-table
+      author: banking-team
+      changes:
+        - createTable:
+            tableName: gl_accounts
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: code
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: type
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: balance
+                  type: DECIMAL(18, 2)
+                  defaultValue: 0
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 002-create-journal-entries-table
+      author: banking-team
+      changes:
+        - createTable:
+            tableName: journal_entries
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: transaction_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: gl_account_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_journal_gl_account
+                    references: gl_accounts(id)
+              - column:
+                  name: debit
+                  type: DECIMAL(15, 2)
+              - column:
+                  name: credit
+                  type: DECIMAL(15, 2)
+              - column:
+                  name: timestamp
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 003-create-account-balance-snapshots-table
+      author: banking-team
+      changes:
+        - createTable:
+            tableName: account_balance_snapshots
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: account_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: period_end_date
+                  type: DATE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: opening_balance
+                  type: DECIMAL(15, 2)
+              - column:
+                  name: closing_balance
+                  type: DECIMAL(15, 2)
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+            uniqueConstraints:
+              - uniqueConstraintName: uq_account_period
+                columnNames: account_id,period_end_date
+
+  - changeSet:
+      id: 004-create-indexes
+      author: banking-team
+      changes:
+        - createIndex:
+            indexName: idx_journal_entries_transaction_id
+            tableName: journal_entries
+            columns:
+              - column:
+                  name: transaction_id
+        - createIndex:
+            indexName: idx_journal_entries_gl_account_id
+            tableName: journal_entries
+            columns:
+              - column:
+                  name: gl_account_id
