@@ -36,10 +36,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,prometheus,info
   endpoint:
+    prometheus:
+      enabled: true
     health:
       show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
 
 jwt:
   secret: my-super-secret-key-for-jwt-tokens-please-change-in-production-minimum-256-bits

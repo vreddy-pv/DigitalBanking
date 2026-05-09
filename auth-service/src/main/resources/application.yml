@@ -28,6 +28,21 @@ jwt:
   expiration: 900000  # 15 minutes in milliseconds
   refresh-expiration: 604800000  # 7 days in milliseconds
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    prometheus:
+      enabled: true
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
 logging:
   level:
     root: INFO

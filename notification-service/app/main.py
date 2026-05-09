@@ -1,12 +1,25 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.responses import JSONResponse
 import logging
 import asyncio
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from app.config import settings
 from app.database import engine, Base
 from app.controllers import health_controller, notification_controller
 from app.events.transaction_listener import TransactionEventListener
 from app.events.event_consumer import TransactionEventConsumer
+
+# Prometheus metrics
+REQUEST_COUNT = Counter(
+    'http_requests_total',
+    'Total HTTP requests',
+    ['method', 'endpoint', 'status']
+)
+REQUEST_LATENCY = Histogram(
+    'http_request_duration_seconds',
+    'HTTP request latency',
+    ['endpoint']
+)
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -25,6 +38,11 @@ app = FastAPI(
 # Include routers
 app.include_router(health_controller.router, prefix="", tags=["Health"])
 app.include_router(notification_controller.router, prefix="/api/v1", tags=["Notifications"])
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # Event listener state
 event_consumer = None
