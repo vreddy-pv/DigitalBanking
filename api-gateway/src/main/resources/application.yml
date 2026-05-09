@@ -1,7 +1,19 @@
 spring:
+  main:
+    web-application-type: reactive
   application:
     name: api-gateway
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+      - org.liquibase.spring.LiquibaseAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
   cloud:
+    compatibility-verifier:
+      enabled: false
     gateway:
       routes:
         - id: auth-service
@@ -12,6 +24,10 @@ spring:
           uri: http://localhost:8002
           predicates:
             - Path=/api/v1/accounts/**
+
+eureka:
+  client:
+    enabled: false
 
 server:
   port: 8000
