@@ -1,8 +1,26 @@
+# ==============================================================================
+# Stage 1: Builder - Compile and build with Maven
+# ==============================================================================
+FROM eclipse-temurin:21-alpine AS builder
+
+WORKDIR /build
+
+# Copy entire project
+COPY . .
+
+# Build the project with Maven (skipping tests for faster build)
+RUN apk add --no-cache maven && \
+    mvn clean package -DskipTests -q
+
+# ==============================================================================
+# Stage 2: Runtime - Run the built application
+# ==============================================================================
 FROM eclipse-temurin:21-jre-alpine
+
 WORKDIR /app
 
-# Copy pre-built JAR from local Maven build
-COPY auth-service/target/auth-service-1.0.0.jar app.jar
+# Copy only the built JAR from builder stage
+COPY --from=builder /build/auth-service/target/auth-service-1.0.0.jar app.jar
 
 EXPOSE 8001
 
