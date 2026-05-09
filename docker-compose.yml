@@ -129,6 +129,18 @@ services:
     environment:
       SPRING_APPLICATION_NAME: api-gateway
       SERVER_PORT: 8000
+      SPRING_CLOUD_GATEWAY_ROUTES_0_ID: auth-service
+      SPRING_CLOUD_GATEWAY_ROUTES_0_URI: http://auth-service:8001
+      SPRING_CLOUD_GATEWAY_ROUTES_0_PREDICATES_0: Path=/api/v1/auth/**
+      SPRING_CLOUD_GATEWAY_ROUTES_1_ID: account-service
+      SPRING_CLOUD_GATEWAY_ROUTES_1_URI: http://account-service:8002
+      SPRING_CLOUD_GATEWAY_ROUTES_1_PREDICATES_0: Path=/api/v1/accounts/**
+      SPRING_CLOUD_GATEWAY_ROUTES_2_ID: transaction-service
+      SPRING_CLOUD_GATEWAY_ROUTES_2_URI: http://transaction-service:8003
+      SPRING_CLOUD_GATEWAY_ROUTES_2_PREDICATES_0: Path=/api/v1/transactions/**
+      SPRING_CLOUD_GATEWAY_ROUTES_3_ID: ledger-service
+      SPRING_CLOUD_GATEWAY_ROUTES_3_URI: http://ledger-service:8004
+      SPRING_CLOUD_GATEWAY_ROUTES_3_PREDICATES_0: Path=/api/v1/ledger/**
     ports:
       - "8000:8000"
     healthcheck:
