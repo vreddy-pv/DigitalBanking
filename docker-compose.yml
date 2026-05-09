@@ -116,6 +116,31 @@ services:
     networks:
       - banking-network
 
+  customer-service:
+    build:
+      context: .
+      dockerfile: customer-service/Dockerfile
+    container_name: customer-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/customer_db
+      DATABASE_USERNAME: customer_user
+      DATABASE_PASSWORD: password
+      JWT_SECRET: ${JWT_SECRET:-mySecretKey12345678901234567890123456789012}
+      SERVICE_PORT: 8005
+    ports:
+      - "8005:8005"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8005/api/v1/customers/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - banking-network
+
   api-gateway:
     build:
       context: .
@@ -204,6 +229,31 @@ services:
       - "8006:8006"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://127.0.0.1:8006/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - banking-network
+
+  analytics-service:
+    build:
+      context: .
+      dockerfile: analytics-service/Dockerfile
+    container_name: analytics-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TRANSACTION_DB_URL: postgresql://analytics_user:password@postgres:5432/transaction_db
+      LEDGER_DB_URL: postgresql://analytics_user:password@postgres:5432/ledger_db
+      SERVICE_PORT: 8007
+      SERVICE_HOST: 0.0.0.0
+      LOG_LEVEL: INFO
+    ports:
+      - "8007:8007"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8007/api/v1/analytics/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

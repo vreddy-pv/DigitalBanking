@@ -1,6 +1,6 @@
-package com.digitalbanking.account.config;
+package com.digitalbanking.customer.config;
 
-import com.digitalbanking.account.security.JwtAuthenticationFilter;
+import com.digitalbanking.customer.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,10 +29,8 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/health", "/actuator/**").permitAll()
-                        // Allow internal service-to-service read-only lookups on the Docker network
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/accounts/*", "/api/v1/accounts/customer/*").permitAll()
-                        .anyRequest().authenticated()
+                        .requestMatchers("/api/v1/customers/health", "/actuator/**").permitAll()
+                        .anyRequest().permitAll()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

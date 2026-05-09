@@ -23,6 +23,9 @@ public class GatewayConfig {
                 .route("ledger-service", r -> r
                         .path("/api/v1/ledger/**")
                         .uri("http://ledger-service:8004"))
+                .route("customer-service", r -> r
+                        .path("/api/v1/customers/**")
+                        .uri("http://customer-service:8005"))
                 .build();
     }
 }

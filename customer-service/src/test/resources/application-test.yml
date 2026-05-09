@@ -1,0 +1,25 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: customer-service-test
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    database-platform: org.hibernate.dialect.H2Dialect
+  liquibase:
+    enabled: false
+
+jwt:
+  secret: testSecretKey12345678901234567890123456789012
+
+logging:
+  level:
+    com.digitalbanking: WARN

@@ -1,5 +1,8 @@
 package com.digitalbanking.transaction.service;
 
+import com.digitalbanking.transaction.client.AccountServiceClient;
+import com.digitalbanking.transaction.client.AccountServiceClient.AccountData;
+import com.digitalbanking.transaction.client.AccountServiceClient.CustomerData;
 import com.digitalbanking.transaction.dto.DepositRequest;
 import com.digitalbanking.transaction.dto.TransactionResponse;
 import com.digitalbanking.transaction.dto.TransferRequest;
@@ -34,6 +37,7 @@ public class TransactionService {
     private final TransactionAuditRepository transactionAuditRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final RabbitTemplate rabbitTemplate;
+    private final AccountServiceClient accountServiceClient;
 
     public TransactionResponse deposit(DepositRequest request) {
         UUID toAccountId = UUID.fromString(request.getToAccountId());
@@ -167,10 +171,27 @@ public class TransactionService {
     }
 
     private void publishTransactionCreatedEvent(Transaction transaction) {
-        // Resolve a best-effort account number for notification context (MVP placeholder)
-        String accountNumber = transaction.getFromAccountId() != null
-                ? transaction.getFromAccountId().toString()
-                : (transaction.getToAccountId() != null ? transaction.getToAccountId().toString() : "");
+        // Determine which account to look up for notification
+        UUID lookupAccountId = transaction.getToAccountId() != null
+                ? transaction.getToAccountId()
+                : transaction.getFromAccountId();
+
+        // Fetch enrichment data — graceful degradation on failure
+        String recipientEmail = "";
+        String customerName = "";
+        String accountNumber = lookupAccountId != null ? lookupAccountId.toString() : "";
+
+        if (lookupAccountId != null) {
+            Optional<AccountData> accountOpt = accountServiceClient.getAccountById(lookupAccountId);
+            if (accountOpt.isPresent()) {
+                accountNumber = accountOpt.get().accountNumber();
+                Optional<CustomerData> customerOpt = accountServiceClient.getCustomerById(accountOpt.get().customerId());
+                if (customerOpt.isPresent()) {
+                    recipientEmail = customerOpt.get().email() != null ? customerOpt.get().email() : "";
+                    customerName = customerOpt.get().name() != null ? customerOpt.get().name() : "";
+                }
+            }
+        }
 
         TransactionCreatedEvent event = TransactionCreatedEvent.builder()
                 .transactionId(transaction.getId())
@@ -180,15 +201,15 @@ public class TransactionService {
                 .amount(transaction.getAmount())
                 .description(transaction.getDescription())
                 .timestamp(System.currentTimeMillis())
-                // Notification Service fields (MVP placeholders — real values require account lookup)
-                .recipientEmail("")
-                .customerName("")
+                .recipientEmail(recipientEmail)
+                .customerName(customerName)
                 .accountNumber(accountNumber)
                 .build();
 
         // Publish to RabbitMQ so the Notification Service (Python/FastAPI) receives it
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_NAME, RabbitMQConfig.ROUTING_KEY, event);
-        log.info("Published TransactionCreatedEvent to RabbitMQ for transaction: {}", transaction.getId());
+        log.info("Published TransactionCreatedEvent to RabbitMQ for transaction: {} (email={}, account={})",
+                transaction.getId(), recipientEmail.isEmpty() ? "<not resolved>" : recipientEmail, accountNumber);
 
         // Also publish in-memory so the Ledger Service (@EventListener) receives it
         eventPublisher.publishEvent(event);

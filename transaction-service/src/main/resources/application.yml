@@ -46,6 +46,10 @@ jwt:
   expiration: 900000
   refresh-expiration: 604800000
 
+services:
+  account-service:
+    url: ${ACCOUNT_SERVICE_URL:http://account-service:8002}
+
 logging:
   level:
     root: INFO
