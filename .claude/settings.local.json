@@ -1,0 +1,58 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker-compose *)",
+      "Bash(docker compose *)",
+      "Bash(docker exec *)",
+      "Bash(docker logs *)",
+      "Bash(docker ps *)",
+      "Bash(docker rmi *)",
+      "Bash(docker inspect *)",
+      "Bash(docker builder *)",
+      "Bash(docker system *)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(curl -s -X POST http://localhost:*)",
+      "Bash(curl -s -X GET http://localhost:*)",
+      "Bash(curl -s -X PUT http://localhost:*)",
+      "Bash(curl -s -X DELETE http://localhost:*)",
+      "Bash(curl -s -X OPTIONS http://localhost:*)",
+      "Bash(curl -s -I http://localhost:*)",
+      "Bash(curl -s -v http://localhost:*)",
+      "Bash(git add *)",
+      "Bash(git commit -m *)",
+      "Bash(git push *)",
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(mvn *)",
+      "Bash(./mvnw *)",
+      "Bash(npm *)",
+      "Bash(ng *)",
+      "Bash(pip install *)",
+      "Bash(pytest *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c \"FILE=$CLAUDE_TOOL_RESULT_FILE; if [[ $FILE == *api-gateway* ]]; then echo '[Hook] api-gateway source changed — remember to run: docker-compose up -d --build api-gateway'; fi\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c \"echo ''; echo '=== Digital Banking Session Summary ==='; docker-compose ps 2>/dev/null | grep -E 'NAME|healthy|unhealthy|starting' || echo 'Docker services not running'; echo '======================================'\""
+          }
+        ]
+      }
+    ]
+  }
+}
