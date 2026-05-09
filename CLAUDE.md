@@ -42,7 +42,8 @@ All services run via Docker Compose. No local JDK/Node install required for runn
 /api/v1/customers/**     → customer-service:8005  (Phase 2)
 /api/v1/analytics/**     → analytics-service:8007 (Phase 2)
 ```
-Notification Service (8006) and Analytics Service (8007) are **not** routed through the gateway — they are internal services consumed by events or direct HTTP.
+**Note:** Customer Service (8005) is routed through the gateway (`/api/v1/customers/**`).
+Notification Service (8006) and Analytics Service (8007) are **not** routed through the gateway — they are consumed by events (Notification) or queried directly (Analytics).
 
 ---
 
@@ -143,6 +144,86 @@ curl -X POST http://localhost:8000/api/v1/transactions/transfer \
   -d '{"fromAccountId":"<FROM_ID>","toAccountId":"<TO_ID>","amount":200,"requestId":"req-unique-id","description":"Transfer"}'
 ```
 
+### Customer Service — KYC & Beneficiaries (Phase 2)
+> Routes through API Gateway: `http://localhost:8000/api/v1/customers/...`  
+> Direct: `http://localhost:8005/api/v1/customers/...`
+
+```bash
+CUSTOMER_ID="<CUSTOMER_ID_FROM_ACCOUNT_REGISTER>"
+
+# Submit KYC document
+# documentType: PASSPORT | NATIONAL_ID | DRIVING_LICENSE | PAN_CARD | UTILITY_BILL
+curl -X POST http://localhost:8000/api/v1/customers/$CUSTOMER_ID/kyc/documents \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -d '{"documentType":"PAN_CARD","documentReference":"ABCDE1234F"}'
+
+# Get KYC status summary
+curl http://localhost:8000/api/v1/customers/$CUSTOMER_ID/kyc/status \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+
+# List all KYC documents
+curl http://localhost:8000/api/v1/customers/$CUSTOMER_ID/kyc/documents \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+
+# Add beneficiary
+curl -X POST http://localhost:8000/api/v1/customers/$CUSTOMER_ID/beneficiaries \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -d '{"beneficiaryAccountId":"<TARGET_ACCOUNT_UUID>","nickname":"Friend"}'
+
+# List beneficiaries
+curl http://localhost:8000/api/v1/customers/$CUSTOMER_ID/beneficiaries \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+
+# Update preferences
+curl -X PUT http://localhost:8000/api/v1/customers/$CUSTOMER_ID/preferences \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -d '{"emailNotifications":true,"smsNotifications":false,"currency":"INR","language":"en"}'
+```
+
+> **Note:** `CUSTOMER_ID` is the `id` returned from `POST /api/v1/accounts/register` (it's the customer record id, NOT the account id or user id).
+
+### Analytics Service — CQRS Reports (Phase 2)
+> Direct only (not through gateway): `http://localhost:8007/api/v1/analytics/...`
+
+```bash
+ACCOUNT_ID="<ACCOUNT_UUID>"
+
+# Paginated transaction statement
+curl "http://localhost:8007/api/v1/analytics/accounts/$ACCOUNT_ID/statement?page=1&page_size=20"
+
+# Monthly credit/debit summary (default: current month)
+curl "http://localhost:8007/api/v1/analytics/accounts/$ACCOUNT_ID/summary?month=2026-05"
+
+# Spending breakdown by transaction type
+curl "http://localhost:8007/api/v1/analytics/accounts/$ACCOUNT_ID/spending"
+
+# Ledger trial balance (all GL accounts)
+curl "http://localhost:8007/api/v1/analytics/ledger/trial-balance"
+
+# Journal entries for a specific transaction
+curl "http://localhost:8007/api/v1/analytics/ledger/journal/<TRANSACTION_ID>"
+
+# Platform-wide statistics
+curl "http://localhost:8007/api/v1/analytics/summary"
+```
+
+### Notifications (Phase 2)
+> Direct only: `http://localhost:8006/api/v1/notifications/...`
+
+```bash
+# Query notifications (filter by status, transaction_id, limit)
+curl "http://localhost:8006/api/v1/notifications?status=SENT&limit=10"
+
+# Notification stats
+curl "http://localhost:8006/api/v1/notifications/stats"
+
+# Get single notification
+curl "http://localhost:8006/api/v1/notifications/<NOTIFICATION_ID>"
+```
+
 ---
 
 ## Test Credentials (current Docker session)
@@ -222,7 +303,7 @@ RabbitMQ Management UI: http://localhost:15672 (guest / guest)
 
 - [x] **Phase 1** — Auth, Account, Transaction, Ledger, API Gateway, UI (complete)
 - [x] **Phase 2 Week 5** — Notification Service with RabbitMQ (complete)
-- [ ] **Phase 2 remaining** — Customer Service (8005, KYC/beneficiaries), KYC enrichment in Transaction Service, Analytics Service (8007, CQRS read model)
+- [x] **Phase 2 remaining** — Customer Service (8005, KYC/beneficiaries), KYC enrichment in Transaction Service, Analytics Service (8007, CQRS read model) ✅ **complete & verified 2026-05-09**
 - [ ] **Phase 3** — Compliance (AML/KYC, Port 8008), Audit Service (Port 8009), K8s, Prometheus/Grafana
 
 ---
@@ -238,3 +319,37 @@ RabbitMQ Management UI: http://localhost:15672 (guest / guest)
 | Service unhealthy | Check `docker-compose logs -f <service>` |
 | DB schema errors | Run `docker-compose down -v && docker-compose up -d --build` |
 | RabbitMQ connection refused | Wait for `digital-banking-rabbitmq` to become healthy first |
+| Customer-service 404 on KYC endpoints | Paths are `/kyc/documents` and `/kyc/status` — NOT `/kyc-documents` or `/kyc-status` |
+| Transaction-service 403 fetching account | account-service SecurityConfig must allow GET `/api/v1/accounts/*` without auth |
+| Analytics trial balance empty | Expected if ledger-service `@EventListener` hasn't processed events (in-process only in Phase 1) |
+| Notification `recipient` is empty | Means AccountServiceClient got 403 — check account-service SecurityConfig permitAll |
+| Python service healthcheck fails (exit 127) | `wget` not in python:3.11-slim — use `curl -f http://127.0.0.1:<port>/<path> \|\| exit 1` |
+
+---
+
+## Architecture Notes — Phase 2 Decisions
+
+### KYC Enrichment Flow
+`POST /transactions/deposit` (or withdraw/transfer):
+1. Transaction created in `transaction_db`
+2. `AccountServiceClient` calls `account-service GET /api/v1/accounts/{id}` (no auth required — internal network)
+3. Gets `accountNumber` + `customerId` → calls `GET /api/v1/accounts/customer/{customerId}`
+4. Gets `email` + `name` → stored in `TransactionCreatedEvent.recipientEmail` / `customerName`
+5. Event published to RabbitMQ → notification-service receives enriched event with real email
+
+### Account-Service Internal Auth Bypass
+`SecurityConfig.java` permits `GET /api/v1/accounts/*` and `GET /api/v1/accounts/customer/*` without JWT.
+These are read-only lookups on the internal Docker network (port 8002 is internal only in production).
+
+### Analytics Service — CQRS Read Model
+- Reads `transaction_db` via `analytics_user` (SELECT only)
+- Reads `ledger_db` via `analytics_user` (SELECT only)
+- **Never writes** — pure read model
+- Uses two separate SQLAlchemy engines
+- The `analytics_user` is created in `init-db.sql` with SELECT grants
+
+### Customer Service — `CUSTOMER_ID` vs `ACCOUNT_ID` vs `USER_ID`
+- `USER_ID` — returned by `/auth/register` — identifies the auth user
+- `CUSTOMER_ID` — returned by `/accounts/register` (the `id` field) — the customer profile id
+- `ACCOUNT_ID` — the actual bank account UUID — found in account_db.accounts table
+- Customer-service endpoints use `CUSTOMER_ID`, not `ACCOUNT_ID`
