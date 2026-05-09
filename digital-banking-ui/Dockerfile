@@ -36,7 +36,7 @@ RUN npm install -g serve
 WORKDIR /app
 
 # Copy only the built artifacts from builder stage
-COPY --from=builder /app/dist /app/dist
+COPY --from=builder /app/dist/digital-banking-ui /app/dist
 
 # Expose port
 EXPOSE 4200
