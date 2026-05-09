@@ -193,7 +193,7 @@ services:
 
   digital-banking-ui:
     build:
-      context: ./digital-banking-ui/shell-app
+      context: ./digital-banking-ui
       dockerfile: Dockerfile
     container_name: digital-banking-ui
     depends_on:

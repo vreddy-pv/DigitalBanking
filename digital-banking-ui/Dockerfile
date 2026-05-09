@@ -4,20 +4,19 @@
 FROM node:18-alpine AS builder
 
 LABEL stage=builder
-LABEL description="Build stage for Digital Banking Shell App"
+LABEL description="Build stage for Digital Banking UI"
 
 # Set working directory
 WORKDIR /app
 
-# Install dependencies
-COPY package*.json ./
-RUN npm install --legacy-peer-deps --no-audit
-
-# Copy source code
+# Copy entire workspace first (excluding node_modules, dist, etc which are in .dockerignore)
 COPY . .
 
-# Build the Angular application for production
-RUN npm run build:prod
+# Install dependencies
+RUN npm install --legacy-peer-deps --no-audit
+
+# Build the Angular app for production
+RUN npm run build -- --configuration production
 
 # Optional: Verify build artifacts
 RUN ls -la dist/
@@ -27,7 +26,7 @@ RUN ls -la dist/
 # ==============================================================================
 FROM node:18-alpine AS runtime
 
-LABEL description="Runtime stage for Digital Banking Shell App"
+LABEL description="Runtime stage for Digital Banking UI"
 LABEL maintainer="Digital Banking Team"
 
 # Install serve package for serving static files

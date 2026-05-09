@@ -17,9 +17,8 @@ yarn-error.log
 *~
 .DS_Store
 
-# Angular
+# Angular - dist output is generated during build
 dist
-.angular
 
 # Build
 coverage
@@ -29,9 +28,8 @@ coverage
 README.md
 *.md
 
-# Tests
+# Tests - keep cypress.config.ts but exclude test files
 e2e
-cypress
 .cypress
 
 # Environment
@@ -43,9 +41,3 @@ cypress
 .github
 .gitlab-ci.yml
 .travis.yml
-
-# Development
-src
-karma.conf.js
-tsconfig.json
-angular.json
