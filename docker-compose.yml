@@ -72,10 +72,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/transaction_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
     ports:
       - "8003:8003"
     healthcheck:
@@ -197,10 +203,11 @@ services:
     ports:
       - "8006:8006"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8006/health"]
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8006/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
     networks:
       - banking-network
 

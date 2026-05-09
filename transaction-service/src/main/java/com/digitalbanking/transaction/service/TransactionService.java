@@ -10,8 +10,10 @@ import com.digitalbanking.transaction.repository.TransactionAuditRepository;
 import com.digitalbanking.transaction.repository.TransactionRepository;
 import com.digitalbanking.common.exception.AppException;
 import com.digitalbanking.common.event.TransactionCreatedEvent;
+import com.digitalbanking.transaction.config.RabbitMQConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,7 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final TransactionAuditRepository transactionAuditRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final RabbitTemplate rabbitTemplate;
 
     public TransactionResponse deposit(DepositRequest request) {
         UUID toAccountId = UUID.fromString(request.getToAccountId());
@@ -164,6 +167,11 @@ public class TransactionService {
     }
 
     private void publishTransactionCreatedEvent(Transaction transaction) {
+        // Resolve a best-effort account number for notification context (MVP placeholder)
+        String accountNumber = transaction.getFromAccountId() != null
+                ? transaction.getFromAccountId().toString()
+                : (transaction.getToAccountId() != null ? transaction.getToAccountId().toString() : "");
+
         TransactionCreatedEvent event = TransactionCreatedEvent.builder()
                 .transactionId(transaction.getId())
                 .fromAccountId(transaction.getFromAccountId())
@@ -172,8 +180,17 @@ public class TransactionService {
                 .amount(transaction.getAmount())
                 .description(transaction.getDescription())
                 .timestamp(System.currentTimeMillis())
+                // Notification Service fields (MVP placeholders — real values require account lookup)
+                .recipientEmail("")
+                .customerName("")
+                .accountNumber(accountNumber)
                 .build();
 
+        // Publish to RabbitMQ so the Notification Service (Python/FastAPI) receives it
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_NAME, RabbitMQConfig.ROUTING_KEY, event);
+        log.info("Published TransactionCreatedEvent to RabbitMQ for transaction: {}", transaction.getId());
+
+        // Also publish in-memory so the Ledger Service (@EventListener) receives it
         eventPublisher.publishEvent(event);
     }
 

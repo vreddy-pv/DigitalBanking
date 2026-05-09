@@ -1,149 +1,198 @@
 import json
 import logging
 import asyncio
+import threading
 from typing import Callable
+from urllib.parse import urlparse
 import pika
-from pika.adapters.asyncio_connection import AsyncioConnection
 from app.config import settings
 from app.schemas.transaction_event import TransactionCreatedEvent
 
 logger = logging.getLogger(__name__)
 
 
+def _parse_rabbitmq_url(url: str) -> dict:
+    """Parse amqp://user:pass@host:port/vhost into pika connection params."""
+    parsed = urlparse(url)
+    return {
+        "host": parsed.hostname or "localhost",
+        "port": parsed.port or 5672,
+        "username": parsed.username or "guest",
+        "password": parsed.password or "guest",
+        "virtual_host": parsed.path.lstrip("/") or "/",
+    }
+
+
 class TransactionEventListener:
-    """Listen for TransactionCreatedEvent from RabbitMQ and trigger notifications"""
+    """Listen for TransactionCreatedEvent from RabbitMQ and trigger notifications.
+
+    Uses pika.BlockingConnection in a background thread so the FastAPI
+    async event loop is not blocked.
+    """
 
     def __init__(self, on_event_callback: Callable):
-        """
-        Initialize event listener
-
-        Args:
-            on_event_callback: Async callback function to handle events
-        """
         self.on_event_callback = on_event_callback
-        self.connection = None
+        self.connection: pika.BlockingConnection | None = None
         self.channel = None
         self.is_listening = False
+        self._stop_event = threading.Event()
+        self._loop: asyncio.AbstractEventLoop | None = None
 
-    async def connect(self) -> None:
-        """Connect to RabbitMQ"""
-        try:
-            credentials = pika.PlainCredentials("guest", "guest")
-            parameters = pika.ConnectionParameters(
-                host="localhost",  # Will be 'rabbitmq' in Docker
-                port=5672,
-                credentials=credentials,
-                heartbeat=600,
-                blocked_connection_timeout=300,
-            )
-
-            # Create async connection
-            self.connection = await AsyncioConnection(parameters).open()
-            self.channel = await self.connection.channel()
-
-            logger.info("Connected to RabbitMQ")
-
-        except Exception as e:
-            logger.error(f"Failed to connect to RabbitMQ: {str(e)}")
-            raise
+    # ------------------------------------------------------------------
+    # Public async API (called from FastAPI lifecycle hooks)
+    # ------------------------------------------------------------------
 
     async def start_listening(self, queue_name: str = "transaction_events") -> None:
-        """
-        Start listening for transaction events
+        """Start the blocking RabbitMQ consumer in a thread executor."""
+        self._loop = asyncio.get_event_loop()
+        self._stop_event.clear()
 
-        Args:
-            queue_name: RabbitMQ queue name
-        """
+        # Run blocking consumer in a thread so we don't block the event loop
+        await self._loop.run_in_executor(
+            None, self._blocking_consume, queue_name
+        )
+
+    async def disconnect(self) -> None:
+        """Signal the consumer thread to stop."""
+        self._stop_event.set()
+        self.is_listening = False
         try:
-            if not self.connection or not self.channel:
-                await self.connect()
+            if self.connection and self.connection.is_open:
+                self.connection.close()
+        except Exception as e:
+            logger.warning(f"Error closing RabbitMQ connection: {e}")
 
-            # Declare queue
-            await self.channel.queue_declare(queue=queue_name, durable=True)
+    # ------------------------------------------------------------------
+    # Blocking consumer (runs in a thread executor)
+    # ------------------------------------------------------------------
 
-            logger.info(f"Listening on queue: {queue_name}")
+    def _blocking_consume(self, queue_name: str) -> None:
+        """Connect to RabbitMQ and start blocking consume loop."""
+        params = _parse_rabbitmq_url(settings.rabbitmq_url)
+        credentials = pika.PlainCredentials(params["username"], params["password"])
+        connection_params = pika.ConnectionParameters(
+            host=params["host"],
+            port=params["port"],
+            virtual_host=params["virtual_host"],
+            credentials=credentials,
+            heartbeat=600,
+            blocked_connection_timeout=300,
+            connection_attempts=5,
+            retry_delay=2,
+        )
 
-            # Set up consumer
-            await self.channel.basic_consume(
+        try:
+            self.connection = pika.BlockingConnection(connection_params)
+            self.channel = self.connection.channel()
+
+            # Declare exchange + queue + binding (idempotent)
+            self.channel.exchange_declare(
+                exchange="banking.events",
+                exchange_type="topic",
+                durable=True,
+            )
+            self.channel.queue_declare(queue=queue_name, durable=True)
+            self.channel.queue_bind(
                 queue=queue_name,
-                on_message_callback=self._on_message_callback,
-                auto_ack=False,
+                exchange="banking.events",
+                routing_key="transaction.created",
+            )
+
+            # Fair dispatch — process one message at a time
+            self.channel.basic_qos(prefetch_count=1)
+            self.channel.basic_consume(
+                queue=queue_name,
+                on_message_callback=self._on_message,
             )
 
             self.is_listening = True
-            logger.info("Transaction event listener started")
+            logger.info(f"RabbitMQ listener started on queue '{queue_name}'")
 
-            # Keep consuming messages
-            await self.channel.start_consuming()
+            # Blocking loop — exits when stop_consuming() is called
+            while not self._stop_event.is_set():
+                self.connection.process_data_events(time_limit=1)
 
-        except Exception as e:
-            logger.error(f"Error starting listener: {str(e)}")
+        except pika.exceptions.AMQPConnectionError as e:
+            logger.error(f"RabbitMQ connection failed: {e}")
             self.is_listening = False
-            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in RabbitMQ consumer: {e}")
+            self.is_listening = False
+        finally:
+            try:
+                if self.connection and self.connection.is_open:
+                    self.connection.close()
+            except Exception:
+                pass
 
-    def _on_message_callback(self, channel, method, properties, body):
-        """
-        Handle incoming RabbitMQ message
-
-        Args:
-            channel: RabbitMQ channel
-            method: Method frame
-            properties: Message properties
-            body: Message body (JSON)
-        """
+    def _on_message(self, channel, method, properties, body: bytes) -> None:
+        """Callback invoked by pika for each incoming message."""
         try:
-            # Parse event
             event_data = json.loads(body.decode("utf-8"))
-            logger.info(f"Received transaction event: {event_data.get('transaction_id')}")
+            logger.info(
+                f"Received TransactionCreatedEvent: {event_data.get('transactionId') or event_data.get('transaction_id')}"
+            )
 
-            # Convert to TransactionCreatedEvent schema
-            event = TransactionCreatedEvent(**event_data)
+            # Normalise Java camelCase → Python snake_case field names
+            normalised = _normalise_event(event_data)
+            event = TransactionCreatedEvent(**normalised)
 
-            # Schedule async callback
-            asyncio.create_task(self._handle_event(event, channel, method))
+            # Schedule the async callback back onto the FastAPI event loop
+            if self._loop and not self._loop.is_closed():
+                future = asyncio.run_coroutine_threadsafe(
+                    self._handle_event(event), self._loop
+                )
+                # Wait (with timeout) so we ack only after processing
+                try:
+                    future.result(timeout=30)
+                    channel.basic_ack(delivery_tag=method.delivery_tag)
+                    logger.info(f"Acknowledged event: {event.transaction_id}")
+                except Exception as e:
+                    logger.error(f"Event processing failed: {e}")
+                    channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+            else:
+                logger.error("Event loop not available — nacking message")
+                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse event JSON: {str(e)}")
+            logger.error(f"Invalid JSON in message: {e}")
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-
         except Exception as e:
-            logger.error(f"Error processing transaction event: {str(e)}")
+            logger.error(f"Error handling message: {e}")
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
-    async def _handle_event(self, event: TransactionCreatedEvent, channel, method):
-        """
-        Handle transaction event asynchronously
+    async def _handle_event(self, event: TransactionCreatedEvent) -> None:
+        """Invoke the registered async callback with the parsed event."""
+        await self.on_event_callback(event)
 
-        Args:
-            event: Parsed transaction event
-            channel: RabbitMQ channel
-            method: Method frame (for acknowledgement)
-        """
-        try:
-            # Call the registered callback
-            await self.on_event_callback(event)
 
-            # Acknowledge message after successful processing
-            channel.basic_ack(delivery_tag=method.delivery_tag)
-            logger.info(f"Event processed successfully: {event.transaction_id}")
+# ------------------------------------------------------------------
+# Helper — normalise Java camelCase event fields to Python snake_case
+# ------------------------------------------------------------------
 
-        except Exception as e:
-            logger.error(f"Error handling event {event.transaction_id}: {str(e)}")
-            # Reject and requeue on error
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+def _normalise_event(data: dict) -> dict:
+    """Map Java-serialised camelCase field names to Python snake_case equivalents.
 
-    async def disconnect(self) -> None:
-        """Disconnect from RabbitMQ"""
-        try:
-            if self.channel:
-                await self.channel.stop_consuming()
-                await self.channel.close()
-
-            if self.connection:
-                await self.connection.close()
-
-            self.is_listening = False
-            logger.info("Disconnected from RabbitMQ")
-
-        except Exception as e:
-            logger.error(f"Error disconnecting: {str(e)}")
+    Java TransactionCreatedEvent fields (Jackson default serialisation):
+        transactionId, fromAccountId, toAccountId, type, amount,
+        description, timestamp (long ms), recipientEmail, customerName, accountNumber
+    """
+    mapping = {
+        "transactionId": "transaction_id",
+        "fromAccountId": "from_account_id",
+        "toAccountId": "to_account_id",
+        "type": "transaction_type",          # Java field is "type", not "transactionType"
+        "transactionType": "transaction_type",  # Also accept snake/camel variant
+        "recipientEmail": "recipient_email",
+        "customerName": "customer_name",
+        "accountNumber": "account_number",
+    }
+    result = {}
+    for key, value in data.items():
+        snake_key = mapping.get(key, key)
+        # Convert epoch-ms timestamp to ISO string for the Python schema
+        if snake_key == "timestamp" and isinstance(value, (int, float)):
+            from datetime import datetime, timezone
+            value = datetime.fromtimestamp(value / 1000, tz=timezone.utc).isoformat()
+        result[snake_key] = value
+    return result

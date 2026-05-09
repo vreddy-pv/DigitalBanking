@@ -16,6 +16,35 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+# NOTE: /stats must come BEFORE /{notification_id} so FastAPI doesn't try to
+# coerce the literal string "stats" into a UUID (which would return 422).
+@router.get("/notifications/stats", response_model=NotificationStatsResponse)
+async def get_notification_stats(db: Session = Depends(get_db)):
+    """Get notification statistics"""
+    total_sent = db.query(func.count(Notification.id)).filter(
+        Notification.status == "SENT"
+    ).scalar() or 0
+
+    total_failed = db.query(func.count(Notification.id)).filter(
+        Notification.status == "FAILED"
+    ).scalar() or 0
+
+    total_pending = db.query(func.count(Notification.id)).filter(
+        Notification.status == "PENDING"
+    ).scalar() or 0
+
+    total = total_sent + total_failed + total_pending or 1
+    success_rate = (total_sent / total * 100) if total > 0 else 0
+
+    return NotificationStatsResponse(
+        total_sent=total_sent,
+        total_failed=total_failed,
+        total_pending=total_pending,
+        retry_queue=total_pending,
+        success_rate=success_rate
+    )
+
+
 @router.get("/notifications/{notification_id}", response_model=NotificationResponse)
 async def get_notification(
     notification_id: uuid.UUID,
@@ -83,30 +112,3 @@ async def retry_notification(
     db.refresh(notification)
 
     return NotificationResponse.from_orm(notification)
-
-
-@router.get("/notifications/stats", response_model=NotificationStatsResponse)
-async def get_notification_stats(db: Session = Depends(get_db)):
-    """Get notification statistics"""
-    total_sent = db.query(func.count(Notification.id)).filter(
-        Notification.status == "SENT"
-    ).scalar() or 0
-
-    total_failed = db.query(func.count(Notification.id)).filter(
-        Notification.status == "FAILED"
-    ).scalar() or 0
-
-    total_pending = db.query(func.count(Notification.id)).filter(
-        Notification.status == "PENDING"
-    ).scalar() or 0
-
-    total = total_sent + total_failed + total_pending or 1
-    success_rate = (total_sent / total * 100) if total > 0 else 0
-
-    return NotificationStatsResponse(
-        total_sent=total_sent,
-        total_failed=total_failed,
-        total_pending=total_pending,
-        retry_queue=total_pending,
-        success_rate=success_rate
-    )

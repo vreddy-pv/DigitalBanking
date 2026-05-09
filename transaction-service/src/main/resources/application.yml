@@ -1,6 +1,11 @@
 spring:
   application:
     name: transaction-service
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
   datasource:
     url: jdbc:postgresql://localhost:5432/transaction_db
     username: postgres
