@@ -1,0 +1,51 @@
+# Maven build outputs
+target/
+*.jar
+*.class
+*.war
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+htmlcov/
+.pytest_cache/
+.coverage
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.suo
+*.user
+
+# Environment / secrets
+.env
+.env.local
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# Test reports
+test-results/
+coverage/
+jacoco/
