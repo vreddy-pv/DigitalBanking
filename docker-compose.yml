@@ -7,7 +7,6 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_INITDB_ARGS: "-c max_connections=200"
     ports:
       - "5432:5432"
     volumes:
@@ -107,6 +106,35 @@ services:
       - "8004:8004"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/api/v1/ledger/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banking-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+      ledger-service:
+        condition: service_healthy
+    environment:
+      SPRING_APPLICATION_NAME: api-gateway
+      SERVER_PORT: 8000
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 5

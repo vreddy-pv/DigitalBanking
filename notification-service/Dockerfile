@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
-COPY requirements.txt .
+COPY notification-service/requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime
@@ -28,10 +28,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /root/.local /root/.local
 
 # Copy application code
-COPY app/ app/
-COPY alembic/ alembic/
-COPY alembic.ini .
-COPY .env.example .
+COPY notification-service/app/ app/
+COPY notification-service/alembic/ alembic/
+COPY notification-service/alembic.ini .
+COPY notification-service/.env.example .
 
 # Set environment variables
 ENV PATH=/root/.local/bin:$PATH
