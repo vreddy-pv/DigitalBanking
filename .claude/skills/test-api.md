@@ -1,11 +1,11 @@
 ---
 name: test-api
-description: Run a complete end-to-end API test of the Digital Banking system — register, login, create account, deposit, withdraw, transfer, verify KYC, check analytics, and verify notification enrichment. All user-facing requests go through the API Gateway on port 8000. Analytics/Notifications queried directly.
+description: Run a complete end-to-end API test of the Digital Banking system — register, login, create account, deposit, withdraw, transfer, verify KYC, check analytics, verify notification enrichment, and verify Phase 3 compliance alerts and audit trail. All user-facing requests go through the API Gateway on port 8000. Analytics/Notifications/Compliance/Audit queried directly.
 ---
 
 # End-to-End API Test
 
-Runs a full Phase 1 + Phase 2 user journey through the platform.
+Runs a full Phase 1 + Phase 2 + Phase 3 user journey through the platform.
 
 ## Complete Test Flow
 
@@ -18,6 +18,9 @@ Runs a full Phase 1 + Phase 2 user journey through the platform.
 7. Check analytics statement and summary
 8. Submit a KYC document
 9. Add a beneficiary
+10. **[Phase 3]** High-value deposit (₹75,000) — triggers AML compliance alert
+11. **[Phase 3]** Verify compliance alert raised (HIGH_VALUE_TRANSACTION)
+12. **[Phase 3]** Verify audit trail captured both transactions
 
 ## Commands
 
@@ -128,12 +131,48 @@ curl -s "$BASE_URL/api/v1/customers/$CUSTOMER_ID/kyc/status" \
   -H "Authorization: Bearer $TOKEN"
 
 echo ""
+echo "=== Step 11 [Phase 3]: High-Value Deposit (AML trigger) ==="
+HV_DEPOSIT=$(curl -s -X POST $BASE_URL/api/v1/transactions/deposit \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{
+    \"toAccountId\":\"$ACCOUNT_ID\",
+    \"amount\":75000,
+    \"requestId\":\"req-hv-${TIMESTAMP}\",
+    \"description\":\"High value test deposit\"
+  }")
+echo $HV_DEPOSIT
+HV_TXN_ID=$(echo $HV_DEPOSIT | grep -o '"transactionId":"[^"]*"' | cut -d'"' -f4)
+echo "HV_TXN_ID: $HV_TXN_ID"
+
+echo ""
+echo "=== Step 12 [Phase 3]: Check Compliance Alerts ==="
+sleep 5
+curl -s "http://localhost:8008/api/v1/compliance/alerts?account_id=$ACCOUNT_ID"
+# Expected: alert_type=HIGH_VALUE_TRANSACTION, severity=HIGH, status=PENDING
+
+echo ""
+echo "=== Step 13 [Phase 3]: Check Risk Profile ==="
+curl -s "http://localhost:8008/api/v1/compliance/customers/$ACCOUNT_ID/risk"
+# Expected: risk_score > 20, risk_level=MEDIUM or higher
+
+echo ""
+echo "=== Step 14 [Phase 3]: Check Audit Trail ==="
+curl -s "http://localhost:8009/api/v1/audit/events?resource_type=TRANSACTION&limit=5"
+# Expected: TRANSACTION_CREATED events for all deposits/withdrawals
+
+echo ""
+echo "=== Step 15 [Phase 3]: Audit Stats ==="
+curl -s "http://localhost:8009/api/v1/audit/events/stats"
+
+echo ""
 echo "=== All Tests Complete ==="
 echo "Email:       $EMAIL"
 echo "USER_ID:     $USER_ID"
 echo "CUSTOMER_ID: $CUSTOMER_ID"
 echo "ACCOUNT_ID:  $ACCOUNT_ID"
 echo "TXN_ID:      $TXN_ID"
+echo "HV_TXN_ID:   $HV_TXN_ID"
 ```
 
 ## Expected Results
@@ -150,6 +189,9 @@ echo "TXN_ID:      $TXN_ID"
 | Summary | total_credits=10000, total_debits=2000, net=8000 |
 | KYC Doc | `"success":true`, status: PENDING, documentType: PAN_CARD |
 | KYC Status | totalDocuments:1, pendingDocuments:1, overallStatus: PENDING |
+| Compliance Alert | alert_type: HIGH_VALUE_TRANSACTION, severity: HIGH, status: PENDING |
+| Risk Profile | risk_score > 0, risk_level: MEDIUM or higher |
+| Audit Events | TRANSACTION_CREATED events for all transactions |
 
 ## Quick Smoke Test (30 seconds)
 
@@ -173,4 +215,10 @@ curl -s http://localhost:8005/api/v1/customers/health | grep -o '"success":true'
 
 # Notifications working?
 curl -s "http://localhost:8006/api/v1/notifications/stats"
+
+# Compliance working?
+curl -s http://localhost:8008/health | grep -o '"status":"healthy"'
+
+# Audit working?
+curl -s http://localhost:8009/health | grep -o '"status":"healthy"'
 ```

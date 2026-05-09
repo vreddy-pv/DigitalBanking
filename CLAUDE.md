@@ -22,12 +22,16 @@ All services run via Docker Compose. No local JDK/Node install required for runn
 | Account Service | 8002 | Java 17 / Spring Boot 3 | Customer & account lifecycle |
 | Transaction Service | 8003 | Java 17 / Spring Boot 3 | Deposits, withdrawals, transfers |
 | Ledger Service | 8004 | Java 17 / Spring Boot 3 | Double-entry bookkeeping |
-| Customer Service | 8005 | Java 17 / Spring Boot 3 | KYC docs, beneficiaries, preferences *(Phase 2)* |
+| Customer Service | 8005 | Java 17 / Spring Boot 3 | KYC docs, beneficiaries, preferences |
 | Notification Service | 8006 | Python 3.11 / FastAPI | Email/SMS via RabbitMQ events |
-| Analytics Service | 8007 | Python 3.11 / FastAPI | CQRS read model, reports *(Phase 2)* |
+| Analytics Service | 8007 | Python 3.11 / FastAPI | CQRS read model, reports |
+| **Compliance Service** | **8008** | **Python 3.11 / FastAPI** | **AML/KYC rule engine, risk scoring** *(Phase 3)* |
+| **Audit Service** | **8009** | **Python 3.11 / FastAPI** | **Immutable append-only audit trail** *(Phase 3)* |
 | PostgreSQL | 5432 | postgres:15-alpine | All service databases |
 | RabbitMQ | 5672 / 15672 | rabbitmq:3.12-management | Async event bus |
 | Angular UI | 4200 | Angular 17 / Node 18 | Web frontend |
+| **Prometheus** | **9090** | **prom/prometheus:v2.47.0** | **Metrics scraping** *(Phase 3)* |
+| **Grafana** | **3000** | **grafana/grafana:10.1.0** | **Dashboards & visualization** *(Phase 3)* |
 
 > **Java version**: All Java services compile and run on **Java 17** (set in root `pom.xml`).
 > The parent POM sets `java.version=17`, `maven.compiler.source=17`, `maven.compiler.target=17`.
@@ -39,11 +43,11 @@ All services run via Docker Compose. No local JDK/Node install required for runn
 /api/v1/accounts/**      → account-service:8002
 /api/v1/transactions/**  → transaction-service:8003
 /api/v1/ledger/**        → ledger-service:8004
-/api/v1/customers/**     → customer-service:8005  (Phase 2)
-/api/v1/analytics/**     → analytics-service:8007 (Phase 2)
+/api/v1/customers/**     → customer-service:8005
+/api/v1/analytics/**     → analytics-service:8007
 ```
-**Note:** Customer Service (8005) is routed through the gateway (`/api/v1/customers/**`).
-Notification Service (8006) and Analytics Service (8007) are **not** routed through the gateway — they are consumed by events (Notification) or queried directly (Analytics).
+**Note:** Notification (8006), Compliance (8008), and Audit (8009) are **not** routed through the gateway — they consume RabbitMQ events or are queried directly.
+Analytics (8007) is queried directly (CQRS read model).
 
 ---
 
@@ -72,6 +76,8 @@ docker-compose up -d --build customer-service
 docker-compose up -d --build notification-service
 docker-compose up -d --build analytics-service
 docker-compose up -d --build digital-banking-ui
+docker-compose up -d --build compliance-service
+docker-compose up -d --build audit-service
 ```
 
 ### Check Health
@@ -82,9 +88,13 @@ curl http://localhost:8001/api/v1/auth/health # Auth direct
 curl http://localhost:8002/api/v1/accounts/health
 curl http://localhost:8003/api/v1/transactions/health
 curl http://localhost:8004/api/v1/ledger/health
-curl http://localhost:8005/api/v1/customers/health  # Customer Service (Phase 2)
+curl http://localhost:8005/api/v1/customers/health  # Customer Service
 curl http://localhost:8006/health                   # Notification Service
-curl http://localhost:8007/api/v1/analytics/health  # Analytics Service (Phase 2)
+curl http://localhost:8007/api/v1/analytics/health  # Analytics Service
+curl http://localhost:8008/health                   # Compliance Service (Phase 3)
+curl http://localhost:8009/health                   # Audit Service (Phase 3)
+curl http://localhost:9090/-/healthy                # Prometheus (Phase 3)
+curl http://localhost:3000/api/health               # Grafana (Phase 3)
 ```
 
 ### View Logs
@@ -224,6 +234,93 @@ curl "http://localhost:8006/api/v1/notifications/stats"
 curl "http://localhost:8006/api/v1/notifications/<NOTIFICATION_ID>"
 ```
 
+### Compliance Service — AML Alerts & Risk (Phase 3)
+> Direct only: `http://localhost:8008/api/v1/compliance/...`
+> **Automatically triggers** for any transaction over 50,000 (HIGH_VALUE) or matching AML rules.
+
+```bash
+ACCOUNT_ID="<ACCOUNT_UUID>"
+
+# List AML alerts (filter by account, severity, status)
+curl "http://localhost:8008/api/v1/compliance/alerts?account_id=$ACCOUNT_ID"
+curl "http://localhost:8008/api/v1/compliance/alerts?severity=HIGH&status=PENDING"
+
+# Get single alert
+curl "http://localhost:8008/api/v1/compliance/alerts/<ALERT_ID>"
+
+# Review an alert (REVIEWED | CLEARED | ESCALATED)
+curl -X PUT "http://localhost:8008/api/v1/compliance/alerts/<ALERT_ID>/review" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"CLEARED","reviewed_by":"officer@bank.com","review_notes":"False positive"}'
+
+# Customer risk profile (score 0-100, level LOW/MEDIUM/HIGH/CRITICAL)
+curl "http://localhost:8008/api/v1/compliance/customers/$ACCOUNT_ID/risk"
+
+# Compliance stats
+curl "http://localhost:8008/api/v1/compliance/stats"
+
+# Manual AML check (without waiting for event)
+curl -X POST "http://localhost:8008/api/v1/compliance/check" \
+  -H "Content-Type: application/json" \
+  -d '{"transaction_id":"<TXN_ID>","account_id":"<ACCOUNT_ID>","amount":75000,"transaction_type":"DEPOSIT"}'
+```
+
+**AML Rules triggered automatically:**
+| Rule | Threshold |
+|------|-----------|
+| HIGH_VALUE_TRANSACTION | amount > 50,000 |
+| LARGE_WITHDRAWAL | withdrawal > 25,000 |
+| ROUND_AMOUNT | amount is round (multiples of 10,000+) |
+| FREQUENT_TRANSACTIONS | 5+ txns in 60 min window |
+| RAPID_SUCCESSION | 3+ txns in 10 min window |
+| STRUCTURING | 3+ txns between 40,000–49,999 |
+
+### Audit Service — Immutable Audit Trail (Phase 3)
+> Direct only: `http://localhost:8009/api/v1/audit/...`
+> **Automatically records** every transaction event from RabbitMQ.
+
+```bash
+# List audit events (filters: event_type, actor, resource_type, resource_id, start_date, end_date)
+curl "http://localhost:8009/api/v1/audit/events?limit=20"
+curl "http://localhost:8009/api/v1/audit/events?resource_type=TRANSACTION&limit=10"
+curl "http://localhost:8009/api/v1/audit/events?event_type=TRANSACTION_CREATED"
+
+# Get single audit event
+curl "http://localhost:8009/api/v1/audit/events/<EVENT_UUID>"
+
+# Get all audit events for a specific resource
+curl "http://localhost:8009/api/v1/audit/events/resource/TRANSACTION/<TXN_ID>"
+
+# Audit statistics
+curl "http://localhost:8009/api/v1/audit/events/stats"
+
+# Manually create an audit event (admin use)
+curl -X POST "http://localhost:8009/api/v1/audit/events" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_type": "ADMIN_ACTION",
+    "actor": "admin@bank.com",
+    "resource_type": "ACCOUNT",
+    "resource_id": "<ACCOUNT_ID>",
+    "action": "FREEZE",
+    "description": "Account frozen for AML review",
+    "source_service": "compliance-service"
+  }'
+```
+
+**Audit event types:** `TRANSACTION_CREATED`, `USER_REGISTERED`, `ACCOUNT_CREATED`,
+`KYC_DOCUMENT_SUBMITTED`, `COMPLIANCE_ALERT_RAISED`, `ADMIN_ACTION`
+
+### Monitoring (Phase 3)
+```bash
+# Prometheus
+open http://localhost:9090                          # Query UI
+open http://localhost:9090/targets                  # Scrape targets status
+
+# Grafana (admin/admin)
+open http://localhost:3000                          # Dashboard
+```
+
 ---
 
 ## Test Credentials (current Docker session)
@@ -273,27 +370,41 @@ CORS is configured in `application.yml` for origins `localhost:4200` and `localh
 
 Each service has its own PostgreSQL database (single Postgres container):
 
-| Service | Database |
-|---------|---------|
-| auth-service | auth_db |
-| account-service | account_db |
-| transaction-service | transaction_db |
-| ledger-service | ledger_db |
-| customer-service | customer_db |
-| notification-service | notification_db |
-| analytics-service | read-only access to transaction_db + ledger_db (no own DB) |
+| Service | Database | User |
+|---------|---------|------|
+| auth-service | auth_db | postgres |
+| account-service | account_db | postgres |
+| transaction-service | transaction_db | postgres |
+| ledger-service | ledger_db | postgres |
+| customer-service | customer_db | customer_user |
+| notification-service | notification_db | notification_user |
+| analytics-service | read-only: transaction_db + ledger_db | analytics_user (SELECT only) |
+| **compliance-service** | **compliance_db** | **compliance_user** |
+| **audit-service** | **audit_db** | **audit_user** |
 
 Schema initialized by `init-db.sql` (runs on first container start).
+**Important:** If `audit_db`/`compliance_db` don't exist (postgres container already running), create them manually:
+```bash
+docker exec digital-banking-postgres psql -U postgres -c "CREATE USER audit_user WITH ENCRYPTED PASSWORD 'password';"
+docker exec digital-banking-postgres psql -U postgres -c "CREATE DATABASE audit_db;"
+docker exec digital-banking-postgres psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE audit_db TO audit_user;"
+docker exec digital-banking-postgres psql -U postgres -d audit_db -c "GRANT ALL PRIVILEGES ON SCHEMA public TO audit_user;"
+```
 
 ---
 
 ## Event-Driven Architecture
 
 ```
-Transaction Service → publishes TransactionCreatedEvent → RabbitMQ queue: transaction_events
-Ledger Service      ← consumes events and creates journal entries
-Notification Service← consumes events and sends email/SMS notifications
+Transaction Service → banking.events exchange (routing key: transaction.created)
+    ↓ transaction_events queue    → Ledger Service (journal entries)
+    ↓ transaction_events queue    → Notification Service (email/SMS)
+    ↓ compliance_events queue     → Compliance Service (AML checks)  ← Phase 3
+    ↓ audit_events queue          → Audit Service (immutable trail)  ← Phase 3
 ```
+
+**Each Python service has its OWN dedicated queue** bound to the `banking.events` exchange,
+so every service receives every message (fan-out pattern via dedicated queues, not shared queue).
 
 RabbitMQ Management UI: http://localhost:15672 (guest / guest)
 
@@ -304,7 +415,7 @@ RabbitMQ Management UI: http://localhost:15672 (guest / guest)
 - [x] **Phase 1** — Auth, Account, Transaction, Ledger, API Gateway, UI (complete)
 - [x] **Phase 2 Week 5** — Notification Service with RabbitMQ (complete)
 - [x] **Phase 2 remaining** — Customer Service (8005, KYC/beneficiaries), KYC enrichment in Transaction Service, Analytics Service (8007, CQRS read model) ✅ **complete & verified 2026-05-09**
-- [ ] **Phase 3** — Compliance (AML/KYC, Port 8008), Audit Service (Port 8009), K8s, Prometheus/Grafana
+- [x] **Phase 3** — Compliance Service (8008, AML/risk scoring), Audit Service (8009, immutable trail), Prometheus (9090), Grafana (3000) ✅ **complete & verified 2026-05-09**
 
 ---
 
@@ -324,6 +435,11 @@ RabbitMQ Management UI: http://localhost:15672 (guest / guest)
 | Analytics trial balance empty | Expected if ledger-service `@EventListener` hasn't processed events (in-process only in Phase 1) |
 | Notification `recipient` is empty | Means AccountServiceClient got 403 — check account-service SecurityConfig permitAll |
 | Python service healthcheck fails (exit 127) | `wget` not in python:3.11-slim — use `curl -f http://127.0.0.1:<port>/<path> \|\| exit 1` |
+| Compliance/audit not receiving events | All services shared one queue — each needs own queue bound to exchange via `queue_bind()` |
+| audit-service fails with `password auth failed` | `audit_user` not in running Postgres — create manually (init-db.sql only runs first start) |
+| `metadata` field causes SQLAlchemy error | Reserved attribute name — use `event_metadata` column alias in ORM model |
+| Compliance `timestamp` validation error | Java sends Unix ms int — use `Optional[Any]` for timestamp field in Pydantic schema |
+| Audit `/api/v1/audit/stats` 404 | Correct path is `/api/v1/audit/events/stats` |
 
 ---
 
@@ -353,3 +469,35 @@ These are read-only lookups on the internal Docker network (port 8002 is interna
 - `CUSTOMER_ID` — returned by `/accounts/register` (the `id` field) — the customer profile id
 - `ACCOUNT_ID` — the actual bank account UUID — found in account_db.accounts table
 - Customer-service endpoints use `CUSTOMER_ID`, not `ACCOUNT_ID`
+
+---
+
+## Architecture Notes — Phase 3 Decisions
+
+### RabbitMQ Fan-Out via Dedicated Queues
+Each Python consumer service has its own dedicated queue bound to `banking.events` exchange:
+- `notification_events` — notification-service
+- `compliance_events` — compliance-service
+- `audit_events` — audit-service
+
+Each listener calls `channel.queue_bind(queue, exchange, routing_key)` so every service gets every event independently. Without dedicated queues, messages round-robin between consumers of the same queue.
+
+### Compliance Service — AML Rule Engine
+- 6 configurable rules: HIGH_VALUE, LARGE_WITHDRAWAL, ROUND_AMOUNT, FREQUENT_TX, RAPID_SUCCESSION, STRUCTURING
+- Risk score 0–100 calculated from alert history: CRITICAL=30pts, HIGH=20pts, MEDIUM=10pts, LOW=3pts (capped per severity)
+- Risk levels: LOW (0-20), MEDIUM (21-50), HIGH (51-80), CRITICAL (81-100)
+- All thresholds configurable via environment variables in docker-compose.yml
+- Alerts have lifecycle: PENDING → REVIEWED / CLEARED / ESCALATED
+
+### Audit Service — Append-Only Design
+- `audit_events` table is strictly append-only — NO UPDATE or DELETE at application level
+- ORM column renamed from `metadata` to `event_metadata` (alias="metadata") to avoid SQLAlchemy reserved attribute conflict
+- Response schema uses `serialization_alias="metadata"` so JSON output still shows `metadata`
+- Event types: TRANSACTION_CREATED, USER_REGISTERED, ACCOUNT_CREATED, KYC_DOCUMENT_SUBMITTED, COMPLIANCE_ALERT_RAISED, ADMIN_ACTION
+
+### Prometheus & Grafana Monitoring
+- Java services expose metrics at `/actuator/prometheus` (Spring Boot Actuator)
+- Python services expose metrics at `/metrics` (prometheus_client)
+- Prometheus config: `monitoring/prometheus.yml` — scrapes all 10+ services
+- Grafana auto-provisioned via `monitoring/grafana/datasources/` and `monitoring/grafana/dashboards/`
+- Default credentials: admin/admin (Grafana), guest/guest (RabbitMQ)

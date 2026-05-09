@@ -42,3 +42,23 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO analytics_us
 GRANT USAGE ON SCHEMA public TO analytics_user;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO analytics_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO analytics_user;
+
+-- Audit service database and user
+\c postgres
+CREATE DATABASE audit_db;
+CREATE USER audit_user WITH ENCRYPTED PASSWORD 'password';
+GRANT ALL PRIVILEGES ON DATABASE audit_db TO audit_user;
+\c audit_db
+GRANT ALL PRIVILEGES ON SCHEMA public TO audit_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO audit_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO audit_user;
+
+-- Compliance service database and user (Phase 3 — AML engine)
+\c postgres
+CREATE DATABASE compliance_db;
+CREATE USER compliance_user WITH ENCRYPTED PASSWORD 'password';
+GRANT ALL PRIVILEGES ON DATABASE compliance_db TO compliance_user;
+\c compliance_db
+GRANT ALL PRIVILEGES ON SCHEMA public TO compliance_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO compliance_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO compliance_user;

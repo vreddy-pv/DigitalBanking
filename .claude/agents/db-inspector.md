@@ -13,7 +13,7 @@ You are a database inspector for the Digital Banking platform's PostgreSQL datab
 docker exec -i digital-banking-postgres psql -U postgres -d <database_name>
 
 # Available databases:
-# auth_db, account_db, transaction_db, ledger_db, customer_db, notification_db
+# auth_db, account_db, transaction_db, ledger_db, customer_db, notification_db, compliance_db, audit_db
 # analytics_user has SELECT access to transaction_db and ledger_db (no separate analytics_db)
 ```
 
@@ -147,6 +147,44 @@ SQL
 # Use analytics_user for read-only access to transaction_db
 docker exec digital-banking-postgres psql -U analytics_user -d transaction_db \
   -c "SELECT COUNT(*) FROM transactions;"
+```
+
+### Compliance Service (compliance_db) — Phase 3
+```sql
+-- All AML alerts
+SELECT id, transaction_id, account_id, amount, transaction_type,
+       alert_type, severity, status, created_at
+FROM compliance_alerts
+ORDER BY created_at DESC;
+
+-- Pending high-severity alerts
+SELECT * FROM compliance_alerts WHERE severity IN ('HIGH','CRITICAL') AND status = 'PENDING';
+
+-- Customer risk profiles
+SELECT customer_id, risk_score, risk_level, alert_count, last_assessed_at
+FROM customer_risk_profiles
+ORDER BY risk_score DESC;
+
+-- Alert stats by type
+SELECT alert_type, severity, COUNT(*) FROM compliance_alerts GROUP BY alert_type, severity;
+```
+
+### Audit Service (audit_db) — Phase 3
+```sql
+-- All audit events (most recent first)
+SELECT id, event_type, actor, resource_type, resource_id, action, created_at
+FROM audit_events ORDER BY created_at DESC LIMIT 20;
+
+-- Events for a specific transaction
+SELECT * FROM audit_events
+WHERE resource_type = 'TRANSACTION' AND resource_id = '<TXN_UUID>';
+
+-- Events by type
+SELECT event_type, COUNT(*) FROM audit_events GROUP BY event_type ORDER BY COUNT(*) DESC;
+
+-- Recent activity (last 24 hours)
+SELECT COUNT(*) FROM audit_events
+WHERE created_at >= NOW() - INTERVAL '24 hours';
 ```
 
 ## Cross-Service Lookup (common debugging)

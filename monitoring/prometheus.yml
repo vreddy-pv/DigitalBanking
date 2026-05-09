@@ -1,0 +1,61 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Java Spring Boot services — expose /actuator/prometheus
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:8000']
+    metrics_path: '/actuator/prometheus'
+
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth-service:8001']
+    metrics_path: '/actuator/prometheus'
+
+  - job_name: 'account-service'
+    static_configs:
+      - targets: ['account-service:8002']
+    metrics_path: '/actuator/prometheus'
+
+  - job_name: 'transaction-service'
+    static_configs:
+      - targets: ['transaction-service:8003']
+    metrics_path: '/actuator/prometheus'
+
+  - job_name: 'ledger-service'
+    static_configs:
+      - targets: ['ledger-service:8004']
+    metrics_path: '/actuator/prometheus'
+
+  - job_name: 'customer-service'
+    static_configs:
+      - targets: ['customer-service:8005']
+    metrics_path: '/actuator/prometheus'
+
+  # Python services — expose /metrics (prometheus_client)
+  - job_name: 'notification-service'
+    static_configs:
+      - targets: ['notification-service:8006']
+    metrics_path: '/metrics'
+
+  - job_name: 'analytics-service'
+    static_configs:
+      - targets: ['analytics-service:8007']
+    metrics_path: '/metrics'
+
+  - job_name: 'compliance-service'
+    static_configs:
+      - targets: ['compliance-service:8008']
+    metrics_path: '/metrics'
+
+  - job_name: 'audit-service'
+    static_configs:
+      - targets: ['audit-service:8009']
+    metrics_path: '/metrics'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

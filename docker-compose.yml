@@ -261,6 +261,77 @@ services:
     networks:
       - banking-network
 
+  audit-service:
+    build:
+      context: .
+      dockerfile: audit-service/Dockerfile
+    container_name: audit-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://audit_user:password@postgres:5432/audit_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      RABBITMQ_QUEUE: audit_events
+      RABBITMQ_EXCHANGE: banking.events
+      RABBITMQ_ROUTING_KEY: transaction.created
+      SERVICE_PORT: 8009
+      SERVICE_HOST: 0.0.0.0
+      LOG_LEVEL: INFO
+      ENV: development
+    ports:
+      - "8009:8009"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8009/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - banking-network
+
+  compliance-service:
+    build:
+      context: .
+      dockerfile: compliance-service/Dockerfile
+    container_name: compliance-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://compliance_user:password@postgres:5432/compliance_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      RABBITMQ_QUEUE: compliance_events
+      RABBITMQ_EXCHANGE: banking.events
+      RABBITMQ_ROUTING_KEY: transaction.created
+      SERVICE_PORT: 8008
+      SERVICE_HOST: 0.0.0.0
+      LOG_LEVEL: INFO
+      ENV: development
+      HIGH_VALUE_THRESHOLD: 50000
+      LARGE_WITHDRAWAL_THRESHOLD: 25000
+      FREQUENT_TX_WINDOW_MINUTES: 60
+      FREQUENT_TX_COUNT: 5
+      RAPID_TX_WINDOW_MINUTES: 10
+      RAPID_TX_COUNT: 3
+      STRUCTURING_LOWER: 40000
+      STRUCTURING_UPPER: 49999
+      STRUCTURING_COUNT: 3
+    ports:
+      - "8008:8008"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8008/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - banking-network
+
   digital-banking-ui:
     build:
       context: ./digital-banking-ui
@@ -291,9 +362,45 @@ services:
     networks:
       - banking-network
 
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: digital-banking-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - banking-network
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: digital-banking-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - banking-network
+
 volumes:
   postgres_data:
   rabbitmq_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   banking-network:

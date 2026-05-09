@@ -1,6 +1,6 @@
 ---
 name: api-debugger
-description: Diagnose API failures in the Digital Banking system. Traces requests from UI → API Gateway → backend services, checks JWT tokens, CORS headers, RabbitMQ events, KYC enrichment, and analytics queries. Use when getting 4xx/5xx errors or when UI shows "Login failed".
+description: Diagnose API failures in the Digital Banking system. Traces requests from UI → API Gateway → backend services, checks JWT tokens, CORS headers, RabbitMQ events, KYC enrichment, analytics queries, compliance alerts, and audit trail. Use when getting 4xx/5xx errors or when UI shows "Login failed".
 model: claude-sonnet-4-5
 ---
 
@@ -22,6 +22,10 @@ Diagnose and fix API failures systematically. You have full access to Docker log
 | Customer | 8005 | `/api/v1/customers/**` | Yes |
 | Notification | 8006 | NOT via gateway | No |
 | Analytics | 8007 | NOT via gateway | No |
+| Compliance | 8008 | NOT via gateway | No |
+| Audit | 8009 | NOT via gateway | No |
+| Prometheus | 9090 | NOT via gateway | No |
+| Grafana | 3000 | NOT via gateway | admin/admin |
 
 ## Diagnostic Playbook
 
@@ -41,6 +45,8 @@ curl -s http://localhost:8004/api/v1/ledger/health
 curl -s http://localhost:8005/api/v1/customers/health
 curl -s http://localhost:8006/health
 curl -s http://localhost:8007/api/v1/analytics/health
+curl -s http://localhost:8008/health
+curl -s http://localhost:8009/health
 
 # Layer 2: Through API Gateway
 curl -s http://localhost:8000/api/v1/auth/health
@@ -113,6 +119,57 @@ docker-compose logs --tail=30 analytics-service 2>&1 | grep "ERROR"
 #      Then grant SELECT on transaction_db and ledger_db
 ```
 
+### Step 8: Debug Compliance Service (Phase 3)
+```bash
+ACCOUNT_ID="<account UUID>"
+
+# Check compliance service is healthy and listening to RabbitMQ
+curl -s http://localhost:8008/health
+docker-compose logs compliance-service 2>&1 | grep "Listening on queue"
+# Should show: [Compliance] Listening on queue 'compliance_events' bound to exchange 'banking.events'
+
+# After a deposit > 50000, check for alerts
+curl -s "http://localhost:8008/api/v1/compliance/alerts?account_id=$ACCOUNT_ID"
+
+# If no alerts after high-value transaction:
+# 1. Check if compliance is consuming from its OWN queue (not shared queue)
+docker-compose logs compliance-service | grep -E "AML|alert|txn|Warning|Error|parse"
+# If "Could not parse event" → fix timestamp field (Optional[Any] not Optional[str])
+# If no messages received → shared queue problem — verify RABBITMQ_QUEUE=compliance_events in docker-compose
+
+# Check RabbitMQ queue bindings
+curl -u guest:guest "http://localhost:15672/api/queues/%2F/compliance_events"
+# Must exist with 1 consumer
+
+# Compliance stats
+curl -s "http://localhost:8008/api/v1/compliance/stats"
+```
+
+### Step 9: Debug Audit Service (Phase 3)
+```bash
+# Check audit service is healthy
+curl -s http://localhost:8009/health
+docker-compose logs audit-service 2>&1 | grep "audit_events"
+# Should show: RabbitMQ audit listener started on queue 'audit_events'
+
+# List audit events (correct endpoint)
+curl -s "http://localhost:8009/api/v1/audit/events?limit=5"
+
+# WRONG — this returns 404:
+# curl "http://localhost:8009/api/v1/audit/stats"  ← WRONG
+# CORRECT:
+curl -s "http://localhost:8009/api/v1/audit/events/stats"
+
+# If audit-service fails to start:
+# Check for "password authentication failed for user audit_user"
+# Fix: Create audit_user manually (init-db.sql only runs on first Postgres start)
+docker exec digital-banking-postgres psql -U postgres -c "CREATE USER audit_user WITH ENCRYPTED PASSWORD 'password';"
+docker exec digital-banking-postgres psql -U postgres -c "CREATE DATABASE audit_db;"
+docker exec digital-banking-postgres psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE audit_db TO audit_user;"
+docker exec digital-banking-postgres psql -U postgres -d audit_db -c "GRANT ALL PRIVILEGES ON SCHEMA public TO audit_user;"
+docker-compose up -d audit-service
+```
+
 ## Key Files to Check
 
 | Issue | File |
@@ -142,6 +199,11 @@ docker-compose logs --tail=30 analytics-service 2>&1 | grep "ERROR"
 | Analytics route "Not Found" | Wrong path | Platform summary is at `/api/v1/analytics/summary` not `/platform/summary` |
 | Notification stats 422 | Route ordering | `/notifications/stats` must be declared BEFORE `/{notification_id}` in controller |
 | Python healthcheck exit 127 | wget missing in slim | Use `curl -f http://127.0.0.1:<port>/<path> || exit 1` |
+| Compliance gets no AML alerts | Shared queue round-robin | Each service must have own queue (compliance_events) bound to exchange |
+| Compliance "could not parse event" | timestamp int not str | schema field: `timestamp: Optional[Any] = None` |
+| audit-service crash on start | audit_user not in Postgres | Create user/db manually (see Step 9) |
+| Audit stats 404 | Wrong path | Use `/api/v1/audit/events/stats` not `/api/v1/audit/stats` |
+| Audit Internal Server Error | metadata name conflict | ORM uses `event_metadata = Column("metadata", JSONB)`, schema uses `serialization_alias="metadata"` |
 
 ## Output Format
 
