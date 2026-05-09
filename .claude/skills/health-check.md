@@ -5,7 +5,7 @@ description: Check the health status of all Digital Banking microservices. Tests
 
 # Health Check — All Services
 
-Verifies that all 8 microservices are running and responding correctly.
+Verifies that all running microservices are healthy and responding correctly.
 
 ## What It Tests
 
@@ -34,8 +34,14 @@ curl -s http://localhost:8003/api/v1/transactions/health
 echo "--- Ledger Service ---"
 curl -s http://localhost:8004/api/v1/ledger/health
 
+echo "--- Customer Service (Phase 2) ---"
+curl -s http://localhost:8005/api/v1/customers/health 2>/dev/null || echo "not deployed yet"
+
 echo "--- Notification Service ---"
 curl -s http://localhost:8006/health
+
+echo "--- Analytics Service (Phase 2) ---"
+curl -s http://localhost:8007/api/v1/analytics/health 2>/dev/null || echo "not deployed yet"
 
 echo "--- Angular UI ---"
 curl -s -o /dev/null -w "%{http_code}" http://localhost:4200/

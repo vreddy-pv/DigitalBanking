@@ -17,15 +17,21 @@ All services run via Docker Compose. No local JDK/Node install required for runn
 
 | Service | Port | Language | Purpose |
 |---------|------|----------|---------|
-| API Gateway | 8000 | Java 21 / Spring Cloud Gateway | Request routing, CORS |
-| Auth Service | 8001 | Java 21 / Spring Boot 3 | JWT auth, user management |
+| API Gateway | 8000 | Java 17 / Spring Cloud Gateway | Request routing, CORS |
+| Auth Service | 8001 | Java 17 / Spring Boot 3 | JWT auth, user management |
 | Account Service | 8002 | Java 17 / Spring Boot 3 | Customer & account lifecycle |
 | Transaction Service | 8003 | Java 17 / Spring Boot 3 | Deposits, withdrawals, transfers |
 | Ledger Service | 8004 | Java 17 / Spring Boot 3 | Double-entry bookkeeping |
+| Customer Service | 8005 | Java 17 / Spring Boot 3 | KYC docs, beneficiaries, preferences *(Phase 2)* |
 | Notification Service | 8006 | Python 3.11 / FastAPI | Email/SMS via RabbitMQ events |
+| Analytics Service | 8007 | Python 3.11 / FastAPI | CQRS read model, reports *(Phase 2)* |
 | PostgreSQL | 5432 | postgres:15-alpine | All service databases |
 | RabbitMQ | 5672 / 15672 | rabbitmq:3.12-management | Async event bus |
 | Angular UI | 4200 | Angular 17 / Node 18 | Web frontend |
+
+> **Java version**: All Java services compile and run on **Java 17** (set in root `pom.xml`).
+> The parent POM sets `java.version=17`, `maven.compiler.source=17`, `maven.compiler.target=17`.
+> All Dockerfiles use `eclipse-temurin:17-alpine` (builder) + `eclipse-temurin:17-jre-alpine` (runtime).
 
 ### Routing through API Gateway
 ```
@@ -33,7 +39,10 @@ All services run via Docker Compose. No local JDK/Node install required for runn
 /api/v1/accounts/**      → account-service:8002
 /api/v1/transactions/**  → transaction-service:8003
 /api/v1/ledger/**        → ledger-service:8004
+/api/v1/customers/**     → customer-service:8005  (Phase 2)
+/api/v1/analytics/**     → analytics-service:8007 (Phase 2)
 ```
+Notification Service (8006) and Analytics Service (8007) are **not** routed through the gateway — they are internal services consumed by events or direct HTTP.
 
 ---
 
@@ -58,7 +67,9 @@ docker-compose up -d --build auth-service
 docker-compose up -d --build account-service
 docker-compose up -d --build transaction-service
 docker-compose up -d --build ledger-service
+docker-compose up -d --build customer-service
 docker-compose up -d --build notification-service
+docker-compose up -d --build analytics-service
 docker-compose up -d --build digital-banking-ui
 ```
 
@@ -70,7 +81,9 @@ curl http://localhost:8001/api/v1/auth/health # Auth direct
 curl http://localhost:8002/api/v1/accounts/health
 curl http://localhost:8003/api/v1/transactions/health
 curl http://localhost:8004/api/v1/ledger/health
-curl http://localhost:8006/health             # Notification Service
+curl http://localhost:8005/api/v1/customers/health  # Customer Service (Phase 2)
+curl http://localhost:8006/health                   # Notification Service
+curl http://localhost:8007/api/v1/analytics/health  # Analytics Service (Phase 2)
 ```
 
 ### View Logs
@@ -147,9 +160,9 @@ Password:   TestPassword123!
 
 All services use **multi-stage Dockerfiles**:
 
-- **Java services** (auth, account, transaction, ledger, api-gateway):
-  - Stage 1 (`builder`): `eclipse-temurin:21-alpine` or `17-alpine` — runs `mvn package`
-  - Stage 2 (runtime): `eclipse-temurin:21-jre-alpine` or `17-jre-alpine` — runs `java -jar app.jar`
+- **Java services** (api-gateway, auth, account, transaction, ledger, customer):
+  - Stage 1 (`builder`): `eclipse-temurin:17-alpine` — runs `mvn clean package -DskipTests`
+  - Stage 2 (runtime): `eclipse-temurin:17-jre-alpine` — runs `java -jar app.jar`
 
 - **Notification Service**:
   - Stage 1 (`builder`): `python:3.11-slim` — installs dependencies
@@ -185,7 +198,9 @@ Each service has its own PostgreSQL database (single Postgres container):
 | account-service | account_db |
 | transaction-service | transaction_db |
 | ledger-service | ledger_db |
+| customer-service | customer_db |
 | notification-service | notification_db |
+| analytics-service | read-only access to transaction_db + ledger_db (no own DB) |
 
 Schema initialized by `init-db.sql` (runs on first container start).
 
@@ -207,8 +222,8 @@ RabbitMQ Management UI: http://localhost:15672 (guest / guest)
 
 - [x] **Phase 1** — Auth, Account, Transaction, Ledger, API Gateway, UI (complete)
 - [x] **Phase 2 Week 5** — Notification Service with RabbitMQ (complete)
-- [ ] **Phase 2 remaining** — KYC enrichment, Analytics Service
-- [ ] **Phase 3** — Compliance (AML/KYC), Audit Service, K8s, Prometheus/Grafana
+- [ ] **Phase 2 remaining** — Customer Service (8005, KYC/beneficiaries), KYC enrichment in Transaction Service, Analytics Service (8007, CQRS read model)
+- [ ] **Phase 3** — Compliance (AML/KYC, Port 8008), Audit Service (Port 8009), K8s, Prometheus/Grafana
 
 ---
 

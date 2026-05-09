@@ -1,7 +1,7 @@
 # ==============================================================================
 # Stage 1: Builder - Compile and build with Maven
 # ==============================================================================
-FROM eclipse-temurin:21-alpine AS builder
+FROM eclipse-temurin:17-alpine AS builder
 
 WORKDIR /build
 
@@ -15,7 +15,7 @@ RUN apk add --no-cache maven && \
 # ==============================================================================
 # Stage 2: Runtime - Run the built application
 # ==============================================================================
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 

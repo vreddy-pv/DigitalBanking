@@ -11,20 +11,31 @@ You are a microservices architect for the Digital Banking platform. Your job is 
 This is a Java/Python microservices platform running on Docker Compose. Every new service must follow these patterns:
 
 ### Java Service Pattern (Spring Boot 3.x)
-- **Port**: Increment from 8004 (next available)
+- **Java version**: Java 17 (set in root pom.xml — `java.version=17`, `maven.compiler.source=17`)
+- **Port**: Next available (8005 → customer-service, 8008+ for Phase 3)
 - **Database**: New `<name>_db` database in the shared PostgreSQL container
-- **Health endpoint**: `GET /<basepath>/health`
-- **Multi-stage Dockerfile**: builder (eclipse-temurin:17-alpine + mvn package) → runtime (eclipse-temurin:17-jre-alpine)
+- **Health endpoint**: `GET /api/v1/<name>/health`
+- **Multi-stage Dockerfile**:
+  - Stage 1 builder: `eclipse-temurin:17-alpine` + `apk add --no-cache maven` + `mvn clean package -DskipTests -q`
+  - Stage 2 runtime: `eclipse-temurin:17-jre-alpine`
 - **DB migrations**: Liquibase in `src/main/resources/db/changelog/`
 - **Parent POM**: inherits from `digital-banking-platform`
+- **Healthcheck in docker-compose**: use `curl -f http://127.0.0.1:<port>/api/v1/<name>/health || exit 1` (Alpine images have curl via apk, NOT wget)
 
 ### Python Service Pattern (FastAPI)
-- **Port**: Increment from 8006 (next available)
-- **Database**: SQLAlchemy + Alembic migrations
+- **Python version**: 3.11 (`python:3.11-slim`)
+- **Port**: Next available (8006 = notification, 8007 = analytics, 8008+ for Phase 3)
+- **Database**: SQLAlchemy + Alembic migrations (or read-only SQLAlchemy for CQRS services)
 - **Health endpoint**: `GET /health`
-- **Multi-stage Dockerfile**: python:3.11-slim builder → python:3.11-slim runtime
+- **Multi-stage Dockerfile**: `python:3.11-slim` builder → `python:3.11-slim` runtime; install `curl` via `apt-get`
+- **Healthcheck in docker-compose**: use `curl -f http://127.0.0.1:<port>/health || exit 1` (NOT wget — image has curl)
 - **Event consumer**: pika (RabbitMQ) for async events
 - **Templates**: Jinja2 for email/SMS
+
+### Analytics / CQRS Service (read-only Python)
+- Same as Python pattern but **no Alembic migrations** — reads existing DBs directly
+- Connect to `transaction_db` and `ledger_db` with **read-only credentials**
+- Never perform writes; use `autocommit=True` or rollback-only sessions
 
 ## Scaffolding Checklist
 
@@ -65,7 +76,7 @@ To publish events: use the same exchange with a new routing key.
 
 Every service must have:
 - Health check endpoint returning `{"success":true,"data":"<Name> Service is running"}`
-- Docker health check in docker-compose.yml using wget
+- Docker health check in docker-compose.yml using **curl** (not wget — Alpine/slim images may not have it)
 - Proper depends_on for postgres (and rabbitmq if using events)
 - Environment variables for all configuration (no hardcoded values)
 - At minimum: happy-path unit test for the health endpoint

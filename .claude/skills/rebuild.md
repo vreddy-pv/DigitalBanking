@@ -10,14 +10,16 @@ Force a fresh Docker build for specific services after code changes, without res
 ## Usage
 
 ```
-/rebuild api-gateway         # Rebuild and restart API Gateway only
-/rebuild auth-service        # Rebuild Auth Service
-/rebuild account-service     # Rebuild Account Service
-/rebuild transaction-service # Rebuild Transaction Service
-/rebuild ledger-service      # Rebuild Ledger Service
-/rebuild notification-service # Rebuild Notification Service (Python)
-/rebuild digital-banking-ui  # Rebuild Angular frontend
-/rebuild all                 # Rebuild everything
+/rebuild api-gateway          # Rebuild and restart API Gateway only
+/rebuild auth-service         # Rebuild Auth Service
+/rebuild account-service      # Rebuild Account Service
+/rebuild transaction-service  # Rebuild Transaction Service
+/rebuild ledger-service       # Rebuild Ledger Service
+/rebuild customer-service     # Rebuild Customer Service (Phase 2, Java 17)
+/rebuild notification-service # Rebuild Notification Service (Python 3.11)
+/rebuild analytics-service    # Rebuild Analytics Service (Phase 2, Python 3.11)
+/rebuild digital-banking-ui   # Rebuild Angular frontend
+/rebuild all                  # Rebuild everything
 ```
 
 ## Commands
@@ -62,9 +64,14 @@ docker-compose up -d api-gateway
 | `account-service/src/**` | account-service |
 | `transaction-service/src/**` | transaction-service |
 | `ledger-service/src/**` | ledger-service |
+| `customer-service/src/**` | customer-service |
 | `notification-service/app/**` | notification-service |
+| `analytics-service/app/**` | analytics-service |
 | `digital-banking-ui/src/**` | digital-banking-ui |
+| `common/src/**` | all Java services (common lib) |
 | `init-db.sql` | all + `docker-compose down -v` first |
+
+> **Java version**: All Java services use `eclipse-temurin:17`. Never use `21` in Dockerfiles.
 
 ## Estimated Build Times
 

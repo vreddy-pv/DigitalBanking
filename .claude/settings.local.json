@@ -29,7 +29,10 @@
       "Bash(npm *)",
       "Bash(ng *)",
       "Bash(pip install *)",
-      "Bash(pytest *)"
+      "Bash(pip install -r *)",
+      "Bash(pytest *)",
+      "Bash(python *)",
+      "Bash(python -m *)"
     ]
   },
   "hooks": {
@@ -39,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c \"FILE=$CLAUDE_TOOL_RESULT_FILE; if [[ $FILE == *api-gateway* ]]; then echo '[Hook] api-gateway source changed — remember to run: docker-compose up -d --build api-gateway'; fi\""
+            "command": "bash -c \"FILE=${CLAUDE_TOOL_INPUT_FILE:-}; for SVC in api-gateway auth-service account-service transaction-service ledger-service customer-service; do if [[ \\\"$FILE\\\" == *$SVC* ]]; then echo \\\"[Hook] $SVC Java source changed — rebuild with: docker-compose up -d --build $SVC\\\"; fi; done\""
           }
         ]
       }
