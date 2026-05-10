@@ -1,323 +1,234 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../api.service';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, RouterLink],
   template: `
-    <div class="container">
-      <div *ngIf="message" [class.alert]="true" [class.alert-success]="!error" [class.alert-danger]="error">
-        {{ message }}
-      </div>
+    <div class="page-header">
+      <h1>Dashboard</h1>
+      <p>Welcome back, {{ userName }}</p>
+    </div>
 
-      <!-- Accounts Section -->
+    <!-- Stats row -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="label">Total Accounts</div>
+        <div class="value">{{ accounts.length }}</div>
+        <div class="sub">Active accounts</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Total Balance</div>
+        <div class="value">{{ totalBalance | currency:'INR':'symbol':'1.0-0' }}</div>
+        <div class="sub">Across all accounts</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Recent Transactions</div>
+        <div class="value">{{ transactions.length }}</div>
+        <div class="sub">Last loaded</div>
+      </div>
+      <div class="stat-card" *ngIf="platformStats">
+        <div class="label">Platform Transactions</div>
+        <div class="value">{{ platformStats.total_transactions || 0 }}</div>
+        <div class="sub">All time</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <!-- Accounts summary -->
       <div class="card">
-        <h2>📊 Your Accounts</h2>
-        <div *ngIf="accounts.length > 0; else noAccounts">
-          <table>
-            <thead>
-              <tr>
-                <th>Account Type</th>
-                <th>Account Number</th>
-                <th>Balance</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let account of accounts">
-                <td>{{ account.accountType }}</td>
-                <td>{{ account.accountNumber }}</td>
-                <td class="text-right">₹ {{ account.balance | number:'1.2-2' }}</td>
-                <td><span [class.text-success]="account.status === 'ACTIVE'">{{ account.status }}</span></td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Your Accounts</span>
+          <a routerLink="/accounts" class="btn btn-outline btn-sm">Manage</a>
+        </div>
+        <div *ngIf="accounts.length; else noAccounts">
+          <div class="account-item" *ngFor="let a of accounts">
+            <div class="account-info">
+              <div class="account-type">{{ a.accountType }}</div>
+              <div class="account-num font-mono">{{ a.accountNumber }}</div>
+            </div>
+            <div class="account-right">
+              <div class="account-balance">{{ a.balance | currency:'INR':'symbol':'1.2-2' }}</div>
+              <span class="badge" [class.badge-success]="a.status === 'ACTIVE'" [class.badge-gray]="a.status !== 'ACTIVE'">
+                {{ a.status }}
+              </span>
+            </div>
+          </div>
         </div>
         <ng-template #noAccounts>
-          <p style="text-align: center; color: #666; padding: 20px;">No accounts found</p>
+          <div class="empty-state">
+            <div>No accounts found.</div>
+            <a routerLink="/accounts" class="btn btn-primary btn-sm mt-16">Open an Account</a>
+          </div>
         </ng-template>
       </div>
 
-      <!-- Transaction Section -->
+      <!-- Recent transactions -->
       <div class="card">
-        <h2>💰 Transaction Operations</h2>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-          <div>
-            <h3>Deposit</h3>
-            <div class="form-group">
-              <label>Account ID</label>
-              <input type="text" [(ngModel)]="depositAccountId" placeholder="Enter account ID">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Recent Transactions</span>
+          <a routerLink="/transactions" class="btn btn-outline btn-sm">All</a>
+        </div>
+        <div *ngIf="recentTxns.length; else noTxns">
+          <div class="txn-item" *ngFor="let t of recentTxns">
+            <div class="txn-type-badge" [class.deposit]="t.type === 'DEPOSIT'" [class.withdrawal]="t.type === 'WITHDRAWAL'" [class.transfer]="t.type === 'TRANSFER'">
+              {{ t.type?.charAt(0) || '?' }}
             </div>
-            <div class="form-group">
-              <label>Amount</label>
-              <input type="number" [(ngModel)]="depositAmount" placeholder="Enter amount">
+            <div class="txn-info">
+              <div class="txn-type">{{ t.type }}</div>
+              <div class="txn-date text-muted">{{ t.createdAt | date:'MMM d, h:mm a' }}</div>
             </div>
-            <button class="btn btn-primary" (click)="submitDeposit()" [disabled]="loading">
-              {{ loading ? 'Processing...' : 'Deposit' }}
-            </button>
-          </div>
-
-          <div>
-            <h3>Withdraw</h3>
-            <div class="form-group">
-              <label>Account ID</label>
-              <input type="text" [(ngModel)]="withdrawAccountId" placeholder="Enter account ID">
+            <div class="txn-amount" [class.text-success]="t.type === 'DEPOSIT'" [class.text-danger]="t.type !== 'DEPOSIT'">
+              {{ t.type === 'DEPOSIT' ? '+' : '-' }}{{ t.amount | currency:'INR':'symbol':'1.2-2' }}
             </div>
-            <div class="form-group">
-              <label>Amount</label>
-              <input type="number" [(ngModel)]="withdrawAmount" placeholder="Enter amount">
-            </div>
-            <button class="btn btn-primary" (click)="submitWithdraw()" [disabled]="loading">
-              {{ loading ? 'Processing...' : 'Withdraw' }}
-            </button>
           </div>
         </div>
-      </div>
-
-      <!-- Transactions History -->
-      <div class="card">
-        <h2>📋 Transaction History</h2>
-        <div *ngIf="transactions.length > 0; else noTransactions">
-          <table>
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Amount</th>
-                <th>Account</th>
-                <th>Status</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let transaction of transactions">
-                <td>{{ transaction.type }}</td>
-                <td [class.text-success]="transaction.type === 'DEPOSIT'" [class.text-danger]="transaction.type === 'WITHDRAWAL'">
-                  ₹ {{ transaction.amount | number:'1.2-2' }}
-                </td>
-                <td>{{ transaction.accountId }}</td>
-                <td>{{ transaction.status }}</td>
-                <td>{{ transaction.createdAt | date:'short' }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <ng-template #noTransactions>
-          <p style="text-align: center; color: #666; padding: 20px;">No transactions found</p>
+        <ng-template #noTxns>
+          <div class="empty-state">No recent transactions.</div>
         </ng-template>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="card">
+      <div class="card-title">Quick Actions</div>
+      <div class="quick-actions">
+        <a routerLink="/transactions" class="action-btn">
+          <div class="action-icon deposit-icon">+</div>
+          <span>Deposit</span>
+        </a>
+        <a routerLink="/transactions" class="action-btn">
+          <div class="action-icon withdraw-icon">-</div>
+          <span>Withdraw</span>
+        </a>
+        <a routerLink="/transactions" class="action-btn">
+          <div class="action-icon transfer-icon">⇄</div>
+          <span>Transfer</span>
+        </a>
+        <a routerLink="/kyc" class="action-btn">
+          <div class="action-icon kyc-icon">◉</div>
+          <span>KYC</span>
+        </a>
+        <a routerLink="/analytics" class="action-btn">
+          <div class="action-icon analytics-icon">◫</div>
+          <span>Analytics</span>
+        </a>
+        <a routerLink="/compliance" class="action-btn">
+          <div class="action-icon compliance-icon">◆</div>
+          <span>Compliance</span>
+        </a>
       </div>
     </div>
   `,
   styles: [`
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 20px;
-    }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
-    .card {
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      padding: 20px;
-      margin-bottom: 20px;
+    .account-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #f1f5f9;
     }
+    .account-item:last-child { border-bottom: none; }
+    .account-type { font-weight: 600; font-size: 13px; }
+    .account-num { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .account-right { text-align: right; }
+    .account-balance { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
 
-    h2 {
-      margin-top: 0;
-      color: #333;
-      margin-bottom: 20px;
+    .txn-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #f1f5f9;
     }
-
-    h3 {
-      color: #333;
-      font-size: 16px;
-      margin-bottom: 15px;
+    .txn-item:last-child { border-bottom: none; }
+    .txn-type-badge {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
     }
+    .txn-type-badge.deposit { background: #dcfce7; color: #16a34a; }
+    .txn-type-badge.withdrawal { background: #fee2e2; color: #dc2626; }
+    .txn-type-badge.transfer { background: #dbeafe; color: #2563eb; }
+    .txn-info { flex: 1; }
+    .txn-type { font-size: 13px; font-weight: 500; }
+    .txn-date { font-size: 11px; margin-top: 2px; }
+    .txn-amount { font-weight: 600; font-size: 13px; }
 
-    .form-group {
-      margin-bottom: 15px;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 5px;
+    .quick-actions { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+    .action-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 8px;
+      background: #f8fafc;
+      border-radius: 10px;
+      text-decoration: none;
+      color: #1e293b;
+      font-size: 12px;
       font-weight: 500;
-      color: #333;
-      font-size: 14px;
-    }
-
-    input {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-
-    input:focus {
-      outline: none;
-      border-color: #667eea;
-    }
-
-    .btn {
-      width: 100%;
-      padding: 10px;
-      background: #667eea;
-      color: white;
-      border: none;
-      border-radius: 4px;
+      transition: all 0.15s;
       cursor: pointer;
-      font-weight: 500;
     }
-
-    .btn:hover:not(:disabled) {
-      background: #5568d3;
+    .action-btn:hover { background: #f1f5f9; transform: translateY(-1px); }
+    .action-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
     }
+    .deposit-icon { background: #dcfce7; color: #16a34a; }
+    .withdraw-icon { background: #fee2e2; color: #dc2626; }
+    .transfer-icon { background: #dbeafe; color: #2563eb; }
+    .kyc-icon { background: #fef3c7; color: #d97706; }
+    .analytics-icon { background: #cffafe; color: #0891b2; }
+    .compliance-icon { background: #ede9fe; color: #7c3aed; }
 
-    .btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      padding: 12px;
-      text-align: left;
-      border-bottom: 1px solid #ddd;
-    }
-
-    th {
-      background: #f8f9fa;
-      font-weight: 600;
-      color: #333;
-    }
-
-    .text-right {
-      text-align: right;
-    }
-
-    .text-danger {
-      color: #dc3545;
-    }
-
-    .text-success {
-      color: #28a745;
-    }
-
-    .alert {
-      padding: 15px;
-      border-radius: 4px;
-      margin-bottom: 20px;
-    }
-
-    .alert-success {
-      background: #d4edda;
-      color: #155724;
-      border: 1px solid #c3e6cb;
-    }
-
-    .alert-danger {
-      background: #f8d7da;
-      color: #721c24;
-      border: 1px solid #f5c6cb;
+    @media (max-width: 900px) {
+      .two-col { grid-template-columns: 1fr; }
+      .quick-actions { grid-template-columns: repeat(3, 1fr); }
     }
   `]
 })
 export class DashboardComponent implements OnInit {
   accounts: any[] = [];
   transactions: any[] = [];
-  message = '';
-  error = false;
-  loading = false;
+  platformStats: any = null;
 
-  depositAccountId = '';
-  depositAmount: number | null = null;
-  withdrawAccountId = '';
-  withdrawAmount: number | null = null;
+  get userName() { return this.api.getUserName() || 'there'; }
+  get totalBalance() { return this.accounts.reduce((s, a) => s + (a.balance || 0), 0); }
+  get recentTxns() { return this.transactions.slice(0, 5); }
 
-  constructor(private apiService: ApiService) {}
+  constructor(private api: ApiService) {}
 
   ngOnInit() {
-    this.loadAccounts();
-    this.loadTransactions();
-  }
-
-  loadAccounts() {
-    this.apiService.getAccounts().subscribe(
-      (response: any) => {
-        this.accounts = response.data || response;
-      },
-      (error: any) => {
-        console.log('Accounts loading note: Make sure account creation is set up');
-      }
-    );
-  }
-
-  loadTransactions() {
-    this.apiService.getTransactions().subscribe(
-      (response: any) => {
-        this.transactions = response.data || response;
-      },
-      (error: any) => {
-        console.log('Transactions loading note: Waiting for transaction data');
-      }
-    );
-  }
-
-  submitDeposit() {
-    if (!this.depositAccountId || !this.depositAmount) {
-      this.message = 'Please fill all fields';
-      this.error = true;
-      return;
-    }
-
-    this.loading = true;
-    this.apiService.deposit(this.depositAccountId, this.depositAmount).subscribe(
-      (response: any) => {
-        this.message = 'Deposit successful!';
-        this.error = false;
-        this.depositAccountId = '';
-        this.depositAmount = null;
-        this.loadTransactions();
-        this.loading = false;
-      },
-      (error: any) => {
-        this.message = error.error?.message || 'Deposit failed';
-        this.error = true;
-        this.loading = false;
-      }
-    );
-  }
-
-  submitWithdraw() {
-    if (!this.withdrawAccountId || !this.withdrawAmount) {
-      this.message = 'Please fill all fields';
-      this.error = true;
-      return;
-    }
-
-    this.loading = true;
-    this.apiService.withdraw(this.withdrawAccountId, this.withdrawAmount).subscribe(
-      (response: any) => {
-        this.message = 'Withdrawal successful!';
-        this.error = false;
-        this.withdrawAccountId = '';
-        this.withdrawAmount = null;
-        this.loadTransactions();
-        this.loading = false;
-      },
-      (error: any) => {
-        this.message = error.error?.message || 'Withdrawal failed';
-        this.error = true;
-        this.loading = false;
-      }
-    );
+    this.api.getAccounts().subscribe({
+      next: (res: any) => { this.accounts = res.data || res || []; },
+      error: () => {}
+    });
+    this.api.getTransactions().subscribe({
+      next: (res: any) => { this.transactions = res.data || res || []; },
+      error: () => {}
+    });
+    this.api.getPlatformSummary().subscribe({
+      next: (res: any) => { this.platformStats = res; },
+      error: () => {}
+    });
   }
 }
