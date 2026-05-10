@@ -10,12 +10,14 @@ Stream or inspect logs from Docker Compose services.
 ## Usage
 
 ```
-/logs api-gateway         # Tail API Gateway logs
-/logs auth-service        # Tail Auth Service logs
-/logs transaction-service # Tail Transaction logs
-/logs notification-service# Tail Notification Service logs
-/logs all                 # Tail all services
-/logs errors              # Show only ERROR lines from all services
+/logs api-gateway          # Tail API Gateway logs
+/logs auth-service         # Tail Auth Service logs
+/logs transaction-service  # Tail Transaction logs
+/logs notification-service # Tail Notification Service logs
+/logs compliance-service   # Tail Compliance/AML logs (Phase 3)
+/logs audit-service        # Tail Audit Trail logs (Phase 3)
+/logs all                  # Tail all services
+/logs errors               # Show only ERROR lines from all services
 ```
 
 ## Commands
@@ -78,4 +80,19 @@ docker-compose logs -f auth-service | grep -i "invalid\|failed\|unauthorized\|40
 ### Watch Transaction Processing
 ```bash
 docker-compose logs -f transaction-service ledger-service | grep -i "created\|processed\|event"
+```
+
+### Watch Compliance AML Alerts (Phase 3)
+```bash
+docker-compose logs -f compliance-service | grep -i "AML\|alert\|HIGH_VALUE\|risk\|queue"
+```
+
+### Watch Audit Trail Events (Phase 3)
+```bash
+docker-compose logs -f audit-service | grep -i "audit\|event\|TRANSACTION\|queue"
+```
+
+### Watch All RabbitMQ Consumers
+```bash
+docker-compose logs -f notification-service compliance-service audit-service | grep -i "received\|queue\|bound\|listening"
 ```

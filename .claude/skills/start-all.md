@@ -1,11 +1,11 @@
 ---
 name: start-all
-description: Start all Digital Banking microservices via Docker Compose. Waits for every service to become healthy and shows final status.
+description: Start all Digital Banking microservices via Docker Compose. Waits for every service to become healthy and shows final status. All 3 phases (13 services + Prometheus + Grafana).
 ---
 
 # Start All Digital Banking Services
 
-Start all 8 services (API Gateway, Auth, Account, Transaction, Ledger, Notification, PostgreSQL, RabbitMQ, Angular UI) using Docker Compose.
+Start all services (API Gateway, Auth, Account, Transaction, Ledger, Customer, Notification, Analytics, Compliance, Audit, Prometheus, Grafana, PostgreSQL, RabbitMQ, Angular UI) using Docker Compose.
 
 ## Steps
 
@@ -33,23 +33,31 @@ docker-compose ps
 
 ## Service URLs After Start
 
-| Service | URL |
-|---------|-----|
-| Angular UI | http://localhost:4200 |
-| API Gateway | http://localhost:8000 |
-| Auth Service | http://localhost:8001 |
-| Account Service | http://localhost:8002 |
-| Transaction Service | http://localhost:8003 |
-| Ledger Service | http://localhost:8004 |
-| Notification Service | http://localhost:8006 |
-| RabbitMQ Management | http://localhost:15672 (guest/guest) |
-| PostgreSQL | localhost:5432 (postgres/password) |
+| Service | URL | Notes |
+|---------|-----|-------|
+| Angular UI | http://localhost:4200 | Web frontend |
+| API Gateway | http://localhost:8000 | All user requests |
+| Auth Service | http://localhost:8001 | Direct only |
+| Account Service | http://localhost:8002 | Direct only |
+| Transaction Service | http://localhost:8003 | Direct only |
+| Ledger Service | http://localhost:8004 | Direct only |
+| Customer Service | http://localhost:8005 | Phase 2 |
+| Notification Service | http://localhost:8006 | Phase 2, direct only |
+| Analytics Service | http://localhost:8007 | Phase 2, direct only |
+| Compliance Service | http://localhost:8008 | Phase 3, direct only |
+| Audit Service | http://localhost:8009 | Phase 3, direct only |
+| Prometheus | http://localhost:9090 | Phase 3 |
+| Grafana | http://localhost:3000 | Phase 3, admin/admin |
+| RabbitMQ Management | http://localhost:15672 | guest/guest |
+| PostgreSQL | localhost:5432 | postgres/password |
 
 ## Expected Startup Time
 
 - PostgreSQL & RabbitMQ: ~15s
-- Java services (cold build): 3-5 minutes
-- Java services (cached): ~60s
+- Java services (cold build): 3-5 minutes each
+- Java services (cached): ~60s each
+- Python services (cold build): 2-3 minutes
+- Python services (cached): ~30s
 - Angular UI: ~45s
 
 ## Troubleshooting

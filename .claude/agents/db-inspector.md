@@ -1,7 +1,7 @@
 ---
 name: db-inspector
 description: Inspect the PostgreSQL databases of any Digital Banking service — query tables, check balances, verify journal entries, debug data issues. Use when you need to look at actual data without connecting through the API.
-model: claude-haiku-4-5
+model: claude-haiku-4-5-20251001
 ---
 
 You are a database inspector for the Digital Banking platform's PostgreSQL databases.

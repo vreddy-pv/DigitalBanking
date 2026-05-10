@@ -1,7 +1,7 @@
 ---
 name: service-builder
 description: Add a new microservice to the Digital Banking platform. Scaffolds the full service — Spring Boot or Python FastAPI — with Dockerfile, database schema, health endpoint, Docker Compose entry, and API Gateway route. Use when starting a new Phase 2/3 service.
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 ---
 
 You are a microservices architect for the Digital Banking platform. Your job is to scaffold new services that match the existing patterns precisely.
@@ -65,10 +65,12 @@ When asked to create a new service, produce:
 
 ## Event Integration
 
-To consume RabbitMQ events:
-- Queue: `transaction_events`
+Each consumer service must have its **own dedicated queue** bound to the exchange (fan-out pattern):
 - Exchange: `banking.events`
 - Routing key: `transaction.created`
+- Queue: `<service-name>_events` (e.g. `compliance_events`, `audit_events`)
+
+Call `channel.queue_bind(queue, exchange, routing_key)` in the consumer so every service gets every event independently. **Never share a queue** between services — messages round-robin and get lost.
 
 To publish events: use the same exchange with a new routing key.
 

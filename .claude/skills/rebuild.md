@@ -18,6 +18,8 @@ Force a fresh Docker build for specific services after code changes, without res
 /rebuild customer-service     # Rebuild Customer Service (Phase 2, Java 17)
 /rebuild notification-service # Rebuild Notification Service (Phase 2, Python 3.11)
 /rebuild analytics-service    # Rebuild Analytics Service (Phase 2, Python 3.11)
+/rebuild compliance-service   # Rebuild Compliance Service (Phase 3, Python 3.11)
+/rebuild audit-service        # Rebuild Audit Service (Phase 3, Python 3.11)
 /rebuild digital-banking-ui   # Rebuild Angular frontend
 /rebuild all                  # Rebuild everything
 ```
@@ -67,6 +69,10 @@ docker-compose up -d customer-service
 | `customer-service/src/**` | customer-service |
 | `notification-service/app/**` | notification-service |
 | `analytics-service/app/**` | analytics-service |
+| `compliance-service/app/**` | compliance-service |
+| `audit-service/app/**` | audit-service |
+| `monitoring/prometheus.yml` | prometheus (restart only) |
+| `monitoring/grafana/**` | grafana (restart only) |
 | `digital-banking-ui/src/**` | digital-banking-ui |
 | `common/src/**` | all Java services (common lib) |
 | `init-db.sql` | all + `docker-compose down -v` first |
@@ -90,6 +96,8 @@ docker-compose up -d customer-service
 | Java services (api-gateway, auth, account, transaction, ledger, customer) | 3-5 min | 45-90s |
 | Notification (Python 3.11) | 2-3 min | 30s |
 | Analytics (Python 3.11) | 2-3 min | 30s |
+| Compliance (Python 3.11) | 2-3 min | 30s |
+| Audit (Python 3.11) | 2-3 min | 30s |
 | Angular UI | 3-4 min | 60s |
 
 ## Verify After Rebuild

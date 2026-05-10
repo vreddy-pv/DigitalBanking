@@ -18,6 +18,7 @@
       "Bash(curl -s -X OPTIONS http://localhost:*)",
       "Bash(curl -s -I http://localhost:*)",
       "Bash(curl -s -v http://localhost:*)",
+      "Bash(curl -s -u guest:guest http://localhost:*)",
       "Bash(git add *)",
       "Bash(git commit -m *)",
       "Bash(git push *)",
@@ -42,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c \"FILE=${CLAUDE_TOOL_INPUT_FILE:-}; for SVC in api-gateway auth-service account-service transaction-service ledger-service customer-service; do if [[ \\\"$FILE\\\" == *$SVC* ]]; then echo \\\"[Hook] $SVC Java source changed — rebuild with: docker-compose up -d --build $SVC\\\"; fi; done\""
+            "command": "bash -c \"FILE=${CLAUDE_TOOL_INPUT_FILE:-}; for SVC in api-gateway auth-service account-service transaction-service ledger-service customer-service; do if [[ \\\"$FILE\\\" == *$SVC* ]]; then echo \\\"[Hook] $SVC Java source changed — rebuild with: docker-compose up -d --build $SVC\\\"; fi; done; for SVC in notification-service analytics-service compliance-service audit-service; do if [[ \\\"$FILE\\\" == *$SVC* ]]; then echo \\\"[Hook] $SVC Python source changed — rebuild with: docker-compose up -d --build $SVC\\\"; fi; done; if [[ \\\"$FILE\\\" == *monitoring/prometheus* ]]; then echo \\\"[Hook] Prometheus config changed — restart with: docker-compose restart prometheus\\\"; fi; if [[ \\\"$FILE\\\" == *monitoring/grafana* ]]; then echo \\\"[Hook] Grafana config changed — restart with: docker-compose restart grafana\\\"; fi\""
           }
         ]
       }
