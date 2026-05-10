@@ -17,8 +17,26 @@ interface NavItem {
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-icon">DB</div>
-          <span class="brand-name">Digital Banking</span>
+          <svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+            <defs>
+              <linearGradient id="sHex" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#26215C"/>
+                <stop offset="100%" stop-color="#3C3489"/>
+              </linearGradient>
+            </defs>
+            <rect width="34" height="34" rx="10" fill="#3C3489"/>
+            <polygon points="17,3 30,10 30,24 17,31 4,24 4,10" fill="url(#sHex)" stroke="#534AB7" stroke-width="0.7"/>
+            <ellipse cx="17" cy="19" rx="8.5" ry="3" fill="none" stroke="#5DCAA5" stroke-width="0.7"/>
+            <ellipse cx="17" cy="19" rx="5" ry="2" fill="none" stroke="#9FE1CB" stroke-width="0.5"/>
+            <polyline points="8,11 17,22 26,11" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="17" cy="9" r="2.4" fill="#3C3489"/>
+            <circle cx="17" cy="9" r="1.7" fill="#EF9F27"/>
+            <circle cx="17" cy="9" r="0.9" fill="#FAC775"/>
+          </svg>
+          <div class="brand-text">
+            <span class="brand-name">VRGT</span>
+            <span class="brand-sub">Digital Banking</span>
+          </div>
         </div>
 
         <nav class="nav">
@@ -70,7 +88,7 @@ interface NavItem {
 
     /* Sidebar */
     .sidebar {
-      background: #0f172a;
+      background: linear-gradient(180deg, #1f204f 0%, #171b3f 100%);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -80,27 +98,29 @@ interface NavItem {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 20px 16px;
+      padding: 18px 16px;
       border-bottom: 1px solid rgba(255,255,255,0.06);
     }
-    .brand-icon {
-      width: 34px;
-      height: 34px;
-      background: #2563eb;
-      border-radius: 8px;
+    .brand-text {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: 800;
-      color: #fff;
-      letter-spacing: 0.05em;
-      flex-shrink: 0;
+      flex-direction: column;
+      overflow: hidden;
     }
     .brand-name {
-      font-size: 14px;
-      font-weight: 600;
-      color: #f1f5f9;
+      font-size: 16px;
+      font-weight: 700;
+      color: #f8f8ff;
+      letter-spacing: 0.12em;
+      white-space: nowrap;
+      line-height: 1.1;
+    }
+    .brand-sub {
+      font-size: 10px;
+      font-weight: 500;
+      color: #5DCAA5;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-top: 2px;
       white-space: nowrap;
     }
 
@@ -125,9 +145,9 @@ interface NavItem {
       font-weight: 500;
       transition: all 0.15s;
     }
-    .nav-link:hover { background: rgba(255,255,255,0.05); color: #e2e8f0; }
-    .nav-link.active { background: rgba(37,99,235,0.2); color: #93c5fd; }
-    .nav-link.active .nav-icon { color: #3b82f6; }
+    .nav-link:hover { background: rgba(83, 74, 183, 0.18); color: #f8f8ff; }
+    .nav-link.active { background: rgba(83, 74, 183, 0.3); color: #fff; }
+    .nav-link.active .nav-icon { color: #1d9e75; }
 
     .nav-icon {
       width: 20px;
@@ -171,29 +191,63 @@ interface NavItem {
     }
     .user-email {
       font-size: 11px;
-      color: #64748b;
+      color: #94a3b8;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .logout-btn {
       width: 100%;
-      padding: 8px;
-      background: transparent;
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 6px;
-      color: #94a3b8;
-      font-size: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #534ab7, #1d9e75);
+      color: #fff;
+      border: none;
+      font-weight: 700;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: background 0.2s ease;
     }
-    .logout-btn:hover { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #f87171; }
+    .logout-btn:hover {
+      background: linear-gradient(135deg, #3e349f, #17795f);
+    }
 
     /* Main area */
     .main {
       display: flex;
       flex-direction: column;
       overflow: hidden;
+    }
+    .topbar {
+      background: #ffffff;
+      border-bottom: 1px solid rgba(83, 74, 183, 0.08);
+      padding: 0 24px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      box-shadow: 0 1px 0 rgba(83, 74, 183, 0.05);
+    }
+    .breadcrumb {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--vrgt-dark-purple, #1e293b);
+    }
+    .env-badge {
+      font-size: 11px;
+      font-weight: 700;
+      background: #eff6ff;
+      color: #2563eb;
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(37, 99, 235, 0.18);
+    }
+
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      background: linear-gradient(180deg, #f7f6ff 0%, #f5f5ff 100%);
+      padding: 28px;
     }
 
     .topbar {

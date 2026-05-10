@@ -12,10 +12,26 @@ import { ApiService } from '../api.service';
     <div class="page">
       <div class="card">
         <div class="brand">
-          <div class="brand-icon">DB</div>
+          <svg class="brand-icon" width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="lHex" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#26215C"/>
+                <stop offset="100%" stop-color="#3C3489"/>
+              </linearGradient>
+            </defs>
+            <rect width="52" height="52" rx="14" fill="#26215C"/>
+            <polygon points="26,5 47,17 47,35 26,47 5,35 5,17" fill="url(#lHex)" stroke="#534AB7" stroke-width="1"/>
+            <ellipse cx="26" cy="30" rx="13" ry="5" fill="none" stroke="#5DCAA5" stroke-width="0.8"/>
+            <ellipse cx="26" cy="30" rx="8" ry="3" fill="none" stroke="#9FE1CB" stroke-width="0.5"/>
+            <polyline points="13,17 26,34 39,17" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="26" cy="14" r="3.5" fill="#3C3489"/>
+            <circle cx="26" cy="14" r="2.5" fill="#EF9F27"/>
+            <circle cx="26" cy="14" r="1.2" fill="#FAC775"/>
+          </svg>
           <div>
-            <div class="brand-title">Digital Banking</div>
-            <div class="brand-sub">Secure. Modern. Reliable.</div>
+            <div class="brand-title">VRGT</div>
+            <div class="brand-full">Vertex Realm Global Technologies</div>
+            <div class="brand-sub">At the peak of every digital realm.</div>
           </div>
         </div>
 
@@ -58,17 +74,17 @@ import { ApiService } from '../api.service';
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      background: linear-gradient(135deg, #0d0b24 0%, #1a1646 50%, #0d0b24 100%);
       padding: 20px;
     }
 
     .card {
       background: #fff;
-      border-radius: 14px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      border-radius: 18px;
+      box-shadow: 0 24px 64px rgba(38, 33, 92, 0.45);
       padding: 36px 32px;
       width: 100%;
-      max-width: 400px;
+      max-width: 420px;
     }
 
     .brand {
@@ -78,26 +94,32 @@ import { ApiService } from '../api.service';
       margin-bottom: 28px;
     }
     .brand-icon {
-      width: 44px;
-      height: 44px;
-      background: #2563eb;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      font-weight: 800;
-      color: #fff;
-      letter-spacing: 0.05em;
       flex-shrink: 0;
     }
-    .brand-title { font-size: 18px; font-weight: 700; color: #1e293b; }
-    .brand-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .brand-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      background: linear-gradient(90deg, #26215C 0%, #7F77DD 55%, #1D9E75 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.1;
+    }
+    .brand-full {
+      font-size: 10px;
+      font-weight: 600;
+      color: #534AB7;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    .brand-sub { font-size: 11px; color: #888780; margin-top: 3px; font-style: italic; }
 
     .tabs {
       display: flex;
-      background: #f1f5f9;
-      border-radius: 8px;
+      background: #EEEDFE;
+      border-radius: 10px;
       padding: 4px;
       margin-bottom: 22px;
     }
@@ -106,22 +128,23 @@ import { ApiService } from '../api.service';
       padding: 8px;
       background: transparent;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       font-size: 13px;
       font-weight: 500;
-      color: #64748b;
+      color: #888780;
       cursor: pointer;
       transition: all 0.15s;
     }
     .tab.active {
       background: #fff;
-      color: #2563eb;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      color: #534AB7;
+      box-shadow: 0 2px 8px rgba(83, 74, 183, 0.14);
+      font-weight: 600;
     }
 
     .alert {
       padding: 11px 13px;
-      border-radius: 6px;
+      border-radius: 10px;
       font-size: 13px;
       margin-bottom: 14px;
     }
@@ -129,43 +152,44 @@ import { ApiService } from '../api.service';
     .alert-danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
 
     .form-group { margin-bottom: 14px; }
-    label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 5px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #26215C; margin-bottom: 6px; }
     input {
       width: 100%;
-      padding: 10px 12px;
-      border: 1px solid #d1d5db;
-      border-radius: 7px;
+      padding: 11px 13px;
+      border: 1px solid #D3D1C7;
+      border-radius: 10px;
       font-size: 14px;
-      color: #1e293b;
+      color: #2C2C2A;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
     input:focus {
       outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+      border-color: #534AB7;
+      box-shadow: 0 0 0 3px rgba(83, 74, 183, 0.12);
     }
 
     .btn-submit {
       width: 100%;
-      padding: 11px;
-      background: #2563eb;
+      padding: 12px;
+      background: linear-gradient(135deg, #534AB7, #1D9E75);
       color: #fff;
       border: none;
-      border-radius: 7px;
+      border-radius: 999px;
       font-size: 14px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
-      margin-top: 4px;
-      transition: background 0.15s, opacity 0.15s;
+      margin-top: 6px;
+      transition: opacity 0.15s, transform 0.15s;
+      letter-spacing: 0.03em;
     }
-    .btn-submit:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-submit:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
     .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 
     .footer-note {
       text-align: center;
       font-size: 11px;
-      color: #94a3b8;
-      margin-top: 18px;
+      color: #AFA9EC;
+      margin-top: 20px;
     }
   `]
 })
