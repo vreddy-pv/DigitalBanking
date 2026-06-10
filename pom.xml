@@ -27,6 +27,7 @@
         <module>transaction-service</module>
         <module>ledger-service</module>
         <module>customer-service</module>
+        <module>complaint-service</module>
     </modules>
 
     <properties>

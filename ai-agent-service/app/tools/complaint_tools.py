@@ -1,11 +1,7 @@
-"""
-Complaint tools — stubs until complaint-service (:8006) is built.
-Replace the stub implementations with real HTTP calls once the service is live.
-"""
-import uuid
-from datetime import datetime, timezone
+import httpx
 
 from app.auth.jwt_validator import UserContext
+from app.config import settings
 
 # ── Tool schema definitions ───────────────────────────────────────────────
 
@@ -67,10 +63,7 @@ DEFINITIONS = [
     },
 ]
 
-# ── Stub handlers (replace with httpx calls once complaint-service is built) ─
-
-_complaint_store: dict[str, dict] = {}  # in-memory store for stubs
-
+# ── Tool handlers — call complaint-service :8011 ──────────────────────────
 
 async def raise_complaint(
     user_context: UserContext,
@@ -81,54 +74,63 @@ async def raise_complaint(
     product_line: str,
     **_,
 ) -> dict:
-    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
-    seq = str(len(_complaint_store) + 1).zfill(4)
-    ticket_id = f"CMP-{date_str}-{seq}"
-
-    _complaint_store[ticket_id] = {
-        "ticket_id": ticket_id,
-        "user_id": user_context.user_id,
-        "transaction_id": transaction_id,
-        "account_id": account_id,
-        "complaint_type": complaint_type,
+    payload = {
+        "userId": user_context.user_id,
+        "accountId": account_id,
+        "transactionId": transaction_id,
+        "productLine": product_line,
+        "complaintType": complaint_type,
         "description": description,
-        "product_line": product_line,
-        "status": "ACCEPTED",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "sla_hours": {"FRAUD": 4, "UNAUTHORIZED": 4, "DISPUTE": 24, "ERROR": 48}.get(complaint_type, 48),
     }
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(
+            f"{settings.complaint_service_url}/api/v1/complaints",
+            json=payload,
+        )
+        resp.raise_for_status()
+        data = resp.json()["data"]
 
+    sla_hours = {"FRAUD": 4, "UNAUTHORIZED": 4, "DISPUTE": 24, "ERROR": 48}.get(complaint_type, 48)
     return {
-        "ticket_id": ticket_id,
-        "status": "ACCEPTED",
+        "ticket_id": data["ticketId"],
+        "status": data["status"],
+        "sla_hours": sla_hours,
         "message": (
-            f"Complaint registered successfully. Your ticket ID is {ticket_id}. "
-            f"Our team will investigate and respond within "
-            f"{_complaint_store[ticket_id]['sla_hours']} hours."
+            f"Complaint registered. Your ticket ID is {data['ticketId']}. "
+            f"Our team will investigate and respond within {sla_hours} hours."
         ),
-        "next_steps": "You will receive updates via your registered email. "
-                      "You can also ask me to check your complaint status anytime.",
+        "next_steps": (
+            "You will receive updates via your registered email. "
+            "You can also ask me to check your complaint status anytime."
+        ),
     }
 
 
 async def get_complaint_status(
     user_context: UserContext, ticket_id: str, **_
 ) -> dict:
-    complaint = _complaint_store.get(ticket_id)
-    if not complaint:
-        return {"error": f"Ticket {ticket_id} not found. Please check the ticket ID and try again."}
-
-    if complaint["user_id"] != user_context.user_id:
-        return {"error": "You are not authorised to view this complaint."}
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(
+            f"{settings.complaint_service_url}/api/v1/complaints/{ticket_id}",
+            params={"userId": user_context.user_id},
+        )
+        if resp.status_code == 404:
+            return {"error": f"Ticket {ticket_id} not found. Please check the ticket ID and try again."}
+        if resp.status_code == 403:
+            return {"error": "You are not authorised to view this complaint."}
+        resp.raise_for_status()
+        data = resp.json()["data"]
 
     return {
-        "ticket_id": complaint["ticket_id"],
-        "status": complaint["status"],
-        "complaint_type": complaint["complaint_type"],
-        "product_line": complaint["product_line"],
-        "created_at": complaint["created_at"],
-        "sla_hours": complaint["sla_hours"],
-        "message": f"Complaint {ticket_id} is currently {complaint['status']}.",
+        "ticket_id": data["ticketId"],
+        "status": data["status"],
+        "complaint_type": data["complaintType"],
+        "product_line": data["productLine"],
+        "sla_deadline": data.get("slaDeadline"),
+        "outcome": data.get("outcome"),
+        "resolution": data.get("resolution"),
+        "created_at": data.get("createdAt"),
+        "message": f"Complaint {ticket_id} is currently {data['status']}.",
     }
 
 
