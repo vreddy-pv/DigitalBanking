@@ -9,6 +9,7 @@ from app.agents import casa_agent, ml_agent, usl_agent
 from app.agents.orchestrator import Orchestrator
 from app.auth.jwt_validator import UserContext, validate_token
 from app.memory.redis_memory import ConversationMemory, create_memory
+from app.workers.investigation_worker import InvestigationWorker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -16,19 +17,23 @@ logger = logging.getLogger(__name__)
 # Singletons created at startup
 _memory: ConversationMemory | None = None
 _orchestrator: Orchestrator | None = None
+_investigation_worker: InvestigationWorker | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _memory, _orchestrator
+    global _memory, _orchestrator, _investigation_worker
     _memory = await create_memory()
     _orchestrator = Orchestrator(
         casa=casa_agent.build(),
         ml=ml_agent.build(),
         usl=usl_agent.build(),
     )
+    _investigation_worker = InvestigationWorker()
+    await _investigation_worker.start()
     logger.info("ai-agent-service ready")
     yield
+    await _investigation_worker.stop()
 
 
 app = FastAPI(

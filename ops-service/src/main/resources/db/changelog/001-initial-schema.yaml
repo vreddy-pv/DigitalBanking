@@ -1,0 +1,109 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-ops-cases-table
+      author: digitalbanking
+      changes:
+        - createTable:
+            tableName: ops_cases
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: ticket_id
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: user_id
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: account_id
+                  type: VARCHAR(100)
+              - column:
+                  name: transaction_id
+                  type: VARCHAR(100)
+              - column:
+                  name: product_line
+                  type: VARCHAR(10)
+              - column:
+                  name: complaint_type
+                  type: VARCHAR(20)
+              - column:
+                  name: sla_deadline_hours
+                  type: INT
+              - column:
+                  name: case_status
+                  type: VARCHAR(25)
+                  defaultValue: OPEN
+                  constraints:
+                    nullable: false
+              - column:
+                  name: assigned_to
+                  type: VARCHAR(100)
+              - column:
+                  name: risk_score
+                  type: INT
+              - column:
+                  name: risk_level
+                  type: VARCHAR(10)
+              - column:
+                  name: investigation_summary
+                  type: TEXT
+              - column:
+                  name: flags
+                  type: TEXT
+              - column:
+                  name: recommended_action
+                  type: VARCHAR(30)
+              - column:
+                  name: ops_notes
+                  type: TEXT
+              - column:
+                  name: outcome
+                  type: VARCHAR(20)
+              - column:
+                  name: received_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 002-ops-cases-indexes
+      author: digitalbanking
+      changes:
+        - createIndex:
+            indexName: idx_ops_cases_user_id
+            tableName: ops_cases
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            indexName: idx_ops_cases_status
+            tableName: ops_cases
+            columns:
+              - column:
+                  name: case_status
+        - createIndex:
+            indexName: idx_ops_cases_assigned_to
+            tableName: ops_cases
+            columns:
+              - column:
+                  name: assigned_to
+        - createIndex:
+            indexName: idx_ops_cases_received_at
+            tableName: ops_cases
+            columns:
+              - column:
+                  name: received_at

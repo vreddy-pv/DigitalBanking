@@ -29,6 +29,7 @@
         <module>customer-service</module>
         <module>complaint-service</module>
         <module>loan-service</module>
+        <module>ops-service</module>
     </modules>
 
     <properties>

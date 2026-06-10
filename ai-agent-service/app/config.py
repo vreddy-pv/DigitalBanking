@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     ledger_service_url: str = "http://localhost:8004"
     complaint_service_url: str = "http://localhost:8011"
     loan_service_url: str = "http://localhost:8012"
+    ops_service_url: str = "http://localhost:8013"
+
+    # RabbitMQ
+    rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
 
     # Redis
     redis_url: str = "redis://localhost:6379"
