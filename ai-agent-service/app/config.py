@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     transaction_service_url: str = "http://localhost:8003"
     ledger_service_url: str = "http://localhost:8004"
     complaint_service_url: str = "http://localhost:8011"
+    loan_service_url: str = "http://localhost:8012"
 
     # Redis
     redis_url: str = "redis://localhost:6379"

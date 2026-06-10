@@ -62,3 +62,21 @@ GRANT ALL PRIVILEGES ON DATABASE compliance_db TO compliance_user;
 GRANT ALL PRIVILEGES ON SCHEMA public TO compliance_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO compliance_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO compliance_user;
+
+-- Complaint service database (Phase 4 — Agentic AI)
+\c postgres
+CREATE DATABASE complaint_db;
+GRANT ALL PRIVILEGES ON DATABASE complaint_db TO postgres;
+\c complaint_db
+GRANT ALL PRIVILEGES ON SCHEMA public TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres;
+
+-- Loan service database (Phase 4 — Agentic AI ML/USL agents)
+\c postgres
+CREATE DATABASE loan_db;
+GRANT ALL PRIVILEGES ON DATABASE loan_db TO postgres;
+\c loan_db
+GRANT ALL PRIVILEGES ON SCHEMA public TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres;

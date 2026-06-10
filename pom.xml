@@ -28,6 +28,7 @@
         <module>ledger-service</module>
         <module>customer-service</module>
         <module>complaint-service</module>
+        <module>loan-service</module>
     </modules>
 
     <properties>

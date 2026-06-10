@@ -1,0 +1,175 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-loans-table
+      author: digitalbanking
+      changes:
+        - createTable:
+            tableName: loans
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: customer_id
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: product_type
+                  type: VARCHAR(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: product_line
+                  type: VARCHAR(10)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: disbursed_amount
+                  type: DECIMAL(15,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: outstanding_principal
+                  type: DECIMAL(15,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: interest_rate
+                  type: DECIMAL(5,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: tenure_months
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: emi_amount
+                  type: DECIMAL(12,2)
+              - column:
+                  name: next_due_date
+                  type: DATE
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  defaultValue: ACTIVE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: VARCHAR(3)
+                  defaultValue: INR
+                  constraints:
+                    nullable: false
+              - column:
+                  name: credit_limit
+                  type: DECIMAL(12,2)
+              - column:
+                  name: utilised_amount
+                  type: DECIMAL(12,2)
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 002-create-emi-schedules-table
+      author: digitalbanking
+      changes:
+        - createTable:
+            tableName: emi_schedules
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: loan_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_emi_loan
+                    references: loans(id)
+              - column:
+                  name: due_date
+                  type: DATE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: emi_amount
+                  type: DECIMAL(12,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: principal_component
+                  type: DECIMAL(12,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: interest_component
+                  type: DECIMAL(12,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: balance_after
+                  type: DECIMAL(15,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  defaultValue: PENDING
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 003-create-indexes
+      author: digitalbanking
+      changes:
+        - createIndex:
+            indexName: idx_loans_user_id
+            tableName: loans
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            indexName: idx_loans_product_line
+            tableName: loans
+            columns:
+              - column:
+                  name: product_line
+        - createIndex:
+            indexName: idx_loans_status
+            tableName: loans
+            columns:
+              - column:
+                  name: status
+        - createIndex:
+            indexName: idx_emi_loan_id
+            tableName: emi_schedules
+            columns:
+              - column:
+                  name: loan_id
+        - createIndex:
+            indexName: idx_emi_due_date
+            tableName: emi_schedules
+            columns:
+              - column:
+                  name: due_date
