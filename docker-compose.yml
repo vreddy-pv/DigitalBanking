@@ -400,11 +400,63 @@ services:
     networks:
       - banking-network
 
+  redis:
+    image: redis:7.2-alpine
+    container_name: digital-banking-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banking-network
+
+  ai-agent-service:
+    build:
+      context: ./ai-agent-service
+      dockerfile: Dockerfile
+    container_name: ai-agent-service
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      MODEL: claude-sonnet-4-6
+      MAX_TOKENS: 4096
+      AUTH_SERVICE_URL: http://auth-service:8001
+      ACCOUNT_SERVICE_URL: http://account-service:8002
+      TRANSACTION_SERVICE_URL: http://transaction-service:8003
+      LEDGER_SERVICE_URL: http://ledger-service:8004
+      REDIS_URL: redis://redis:6379
+      SESSION_TTL_SECONDS: 1800
+      MAX_CONVERSATION_TURNS: 10
+    ports:
+      - "8010:8010"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - banking-network
+
 volumes:
   postgres_data:
   rabbitmq_data:
   prometheus_data:
   grafana_data:
+  redis_data:
 
 networks:
   banking-network:
