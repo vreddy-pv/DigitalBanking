@@ -2,7 +2,7 @@ import json
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -11,12 +11,12 @@ from app.agents import casa_agent, complaint_agent, cul_agent, ml_agent
 from app.agents.orchestrator import Orchestrator
 from app.auth.jwt_validator import UserContext, validate_token
 from app.memory.redis_memory import ConversationMemory, create_memory
+from app.observability import observability
 from app.workers.investigation_worker import InvestigationWorker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
 
-# Singletons created at startup
 _memory: ConversationMemory | None = None
 _orchestrator: Orchestrator | None = None
 _investigation_worker: InvestigationWorker | None = None
@@ -25,6 +25,10 @@ _investigation_worker: InvestigationWorker | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _memory, _orchestrator, _investigation_worker
+
+    # ── Observability must initialise first (patches httpx/redis before clients open) ──
+    observability.init()
+
     _memory = await create_memory()
     _orchestrator = Orchestrator(
         casa=casa_agent.build(),
@@ -37,6 +41,7 @@ async def lifespan(app: FastAPI):
     logger.info("ai-agent-service ready — CASA / ML / CUL / COMPLAINT agents online")
     yield
     await _investigation_worker.stop()
+    observability.flush()
 
 
 app = FastAPI(
@@ -55,7 +60,7 @@ app.add_middleware(
 )
 
 
-# ── Request / Response models ─────────────────────────────────────────────
+# ── Request / Response models ─────────────────────────────────────────────────
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
@@ -73,11 +78,26 @@ class HistoryResponse(BaseModel):
     turns: list[dict]
 
 
-# ── Routes ────────────────────────────────────────────────────────────────
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
     return {"status": "UP", "service": "ai-agent-service", "version": "2.0.0"}
+
+
+@app.get("/metrics", include_in_schema=False)
+async def prometheus_metrics():
+    """Prometheus scrape endpoint — collected by Datadog Agent or Prometheus."""
+    try:
+        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        return Response(
+            content="# prometheus_client not installed\n",
+            status_code=503,
+            media_type="text/plain",
+        )
 
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
@@ -86,15 +106,26 @@ async def chat(
     user: UserContext = Depends(validate_token),
 ):
     history = await _memory.get_history(user.user_id)
-    agent_response = await _orchestrator.route(request.message, history, user)
-    await _memory.add_turn(user.user_id, request.message, agent_response.text)
 
-    return ChatResponse(
-        response=agent_response.text,
-        agent_used=agent_response.agent_used,
+    # ── Open LangFuse trace for this request ──────────────────────────────────
+    trace = observability.start_request_trace(
+        user_id=user.user_id,
+        message=request.message,
         session_id=user.user_id,
-        ticket_id=agent_response.ticket_id,
     )
+
+    try:
+        agent_response = await _orchestrator.route(request.message, history, user)
+        await _memory.add_turn(user.user_id, request.message, agent_response.text)
+        observability.finish_request_trace(trace, agent_response.text, agent_response.agent_used)
+        return ChatResponse(
+            response=agent_response.text,
+            agent_used=agent_response.agent_used,
+            session_id=user.user_id,
+            ticket_id=agent_response.ticket_id,
+        )
+    finally:
+        observability.flush()
 
 
 @app.post("/api/v1/chat/stream")
@@ -103,25 +134,34 @@ async def chat_stream(
     user: UserContext = Depends(validate_token),
 ):
     """
-    SSE streaming endpoint. Runs the full agent loop (including tool calls), then
-    streams the final text response token by token via Server-Sent Events.
+    SSE streaming endpoint.  Runs the full agentic loop (including all tool calls),
+    then streams the final text response word-by-word via Server-Sent Events.
 
     Event format:
-      data: {"text": "<chunk>", "agent": "<agent_name>"}  — text chunk
-      data: {"done": true, "agent": "<agent_name>", "ticket_id": null}  — completion signal
+      data: {"text": "<chunk>", "agent": "<agent_name>"}   — text chunk
+      data: {"done": true, "agent": "...", "ticket_id": null}  — completion
     """
     async def generate():
         history = await _memory.get_history(user.user_id)
-        agent_response = await _orchestrator.route(request.message, history, user)
-        await _memory.add_turn(user.user_id, request.message, agent_response.text)
+        trace = observability.start_request_trace(
+            user_id=user.user_id,
+            message=request.message,
+            session_id=user.user_id,
+        )
+        try:
+            agent_response = await _orchestrator.route(request.message, history, user)
+            await _memory.add_turn(user.user_id, request.message, agent_response.text)
+            observability.finish_request_trace(
+                trace, agent_response.text, agent_response.agent_used
+            )
+        finally:
+            observability.flush()
 
-        # Stream text word by word
         words = agent_response.text.split(" ")
         for i, word in enumerate(words):
             chunk = word if i == 0 else f" {word}"
             yield f"data: {json.dumps({'text': chunk, 'agent': agent_response.agent_used})}\n\n"
 
-        # Completion event carries metadata
         yield f"data: {json.dumps({'done': True, 'agent': agent_response.agent_used, 'ticket_id': agent_response.ticket_id})}\n\n"
 
     return StreamingResponse(

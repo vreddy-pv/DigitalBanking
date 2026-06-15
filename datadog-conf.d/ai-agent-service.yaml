@@ -1,0 +1,16 @@
+init_config:
+
+instances:
+  - openmetrics_endpoint: http://ai-agent-service:8010/metrics
+    namespace: banking
+    metrics:
+      - banking_agent_invocations_total
+      - banking_agent_latency_seconds
+      - banking_llm_tokens_total
+      - banking_tool_calls_total
+      - banking_intent_classifications_total
+    collect_histogram_buckets: true
+    histogram_buckets_by_metric:
+      banking_agent_latency_seconds: true
+    tag_by_endpoint: false
+    min_collection_interval: 15

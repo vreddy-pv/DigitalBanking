@@ -1,4 +1,101 @@
 services:
+
+  # ── Observability Stack ───────────────────────────────────────────────────────
+
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:7.50.3
+    container_name: datadog-agent
+    environment:
+      DD_API_KEY: ${DD_API_KEY:-}
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+      DD_HOSTNAME: digital-banking-platform
+      DD_TAGS: "env:${ENV:-dev},team:platform,version:${APP_VERSION:-2.0.0}"
+      DD_APM_ENABLED: "true"
+      DD_APM_NON_LOCAL_TRAFFIC: "true"
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+      DD_LOGS_ENABLED: "true"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
+      DD_PROCESS_AGENT_ENABLED: "true"
+      DD_CONTAINER_EXCLUDE: "name:datadog-agent,name:langfuse-postgres,name:langfuse-redis"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./datadog-conf.d:/etc/datadog-agent/conf.d:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    ports:
+      - "8126:8126/tcp"
+      - "8125:8125/udp"
+    networks:
+      - banking-network
+    healthcheck:
+      test: ["CMD", "agent", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  langfuse-postgres:
+    image: postgres:16-alpine
+    container_name: langfuse-postgres
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:-langfuse_secret}
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banking-network
+
+  langfuse-redis:
+    image: redis:7-alpine
+    container_name: langfuse-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - langfuse_redis_data:/data
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banking-network
+
+  langfuse-server:
+    image: langfuse/langfuse:2
+    container_name: langfuse-server
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD:-langfuse_secret}@langfuse-postgres:5432/langfuse
+      REDIS_CONNECTION_STRING: redis://langfuse-redis:6379
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-changeme_in_production_32chars__}
+      NEXTAUTH_URL: http://localhost:3001
+      LOG_LEVEL: info
+      TELEMETRY_ENABLED: "false"
+    ports:
+      - "3001:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - banking-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+
   postgres:
     image: postgres:15-alpine
     container_name: digital-banking-postgres
@@ -32,6 +129,13 @@ services:
       SPRING_DATASOURCE_PASSWORD: password
       JWT_SECRET: my-super-secret-key-for-jwt-tokens-please-change-in-production-minimum-256-bits
       JWT_EXPIRATION: 900000
+      JAVA_TOOL_OPTIONS: "-javaagent:/dd-java-agent.jar"
+      DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
+      DD_SERVICE: auth-service
+      DD_ENV: ${ENV:-dev}
+      DD_VERSION: ${APP_VERSION:-2.0.0}
+      DD_AGENT_HOST: datadog-agent
+      DD_AGENT_PORT: "8126"
     ports:
       - "8001:8001"
     healthcheck:
@@ -55,6 +159,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/account_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
+      JAVA_TOOL_OPTIONS: "-javaagent:/dd-java-agent.jar"
+      DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
+      DD_SERVICE: account-service
+      DD_ENV: ${ENV:-dev}
+      DD_VERSION: ${APP_VERSION:-2.0.0}
+      DD_AGENT_HOST: datadog-agent
+      DD_AGENT_PORT: "8126"
     ports:
       - "8002:8002"
     healthcheck:
@@ -84,6 +195,13 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      JAVA_TOOL_OPTIONS: "-javaagent:/dd-java-agent.jar"
+      DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
+      DD_SERVICE: transaction-service
+      DD_ENV: ${ENV:-dev}
+      DD_VERSION: ${APP_VERSION:-2.0.0}
+      DD_AGENT_HOST: datadog-agent
+      DD_AGENT_PORT: "8126"
     ports:
       - "8003:8003"
     healthcheck:
@@ -109,6 +227,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ledger_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
+      JAVA_TOOL_OPTIONS: "-javaagent:/dd-java-agent.jar"
+      DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
+      DD_SERVICE: ledger-service
+      DD_ENV: ${ENV:-dev}
+      DD_VERSION: ${APP_VERSION:-2.0.0}
+      DD_AGENT_HOST: datadog-agent
+      DD_AGENT_PORT: "8126"
     ports:
       - "8004:8004"
     healthcheck:
@@ -442,6 +567,13 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      JAVA_TOOL_OPTIONS: "-javaagent:/dd-java-agent.jar"
+      DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
+      DD_SERVICE: complaint-service
+      DD_ENV: ${ENV:-dev}
+      DD_VERSION: ${APP_VERSION:-2.0.0}
+      DD_AGENT_HOST: datadog-agent
+      DD_AGENT_PORT: "8126"
     ports:
       - "8011:8011"
     healthcheck:
@@ -514,6 +646,17 @@ services:
       ML_MCP_URL: http://ml-mcp-server:8015
       CUL_MCP_URL: http://cul-mcp-server:8016
       COMPLAINT_MCP_URL: http://complaint-mcp-server:8017
+      # ── Observability ──
+      ENV: ${ENV:-dev}
+      APP_VERSION: ${APP_VERSION:-2.0.0}
+      DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
+      DD_SERVICE: ai-agent-service
+      DD_AGENT_HOST: datadog-agent
+      DD_AGENT_PORT: "8126"
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_HOST: http://langfuse-server:3000
     ports:
       - "8010:8010"
     healthcheck:
@@ -537,6 +680,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/loan_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
+      JAVA_TOOL_OPTIONS: "-javaagent:/dd-java-agent.jar"
+      DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
+      DD_SERVICE: loan-service
+      DD_ENV: ${ENV:-dev}
+      DD_VERSION: ${APP_VERSION:-2.0.0}
+      DD_AGENT_HOST: datadog-agent
+      DD_AGENT_PORT: "8126"
     ports:
       - "8012:8012"
     healthcheck:
@@ -569,6 +719,13 @@ services:
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
       COMPLAINT_SERVICE_URL: http://complaint-service:8011
+      JAVA_TOOL_OPTIONS: "-javaagent:/dd-java-agent.jar"
+      DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
+      DD_SERVICE: ops-service
+      DD_ENV: ${ENV:-dev}
+      DD_VERSION: ${APP_VERSION:-2.0.0}
+      DD_AGENT_HOST: datadog-agent
+      DD_AGENT_PORT: "8126"
     ports:
       - "8013:8013"
     healthcheck:
@@ -675,6 +832,8 @@ volumes:
   prometheus_data:
   grafana_data:
   redis_data:
+  langfuse_postgres_data:
+  langfuse_redis_data:
 
 networks:
   banking-network:

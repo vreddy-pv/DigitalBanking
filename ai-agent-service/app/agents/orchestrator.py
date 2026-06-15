@@ -5,6 +5,7 @@ import anthropic
 from app.agents.base_agent import AgentResponse, BaseAgent
 from app.auth.jwt_validator import UserContext
 from app.config import settings
+from app.observability import observability
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,9 @@ class Orchestrator:
     ) -> AgentResponse:
         intent = await self._classify(message, history)
         logger.info("Intent=%s user=%s", intent, user_context.user_id)
+
+        # ── Prometheus: track intent distribution ─────────────────────────────
+        observability.record_intent(intent)
 
         messages = history + [{"role": "user", "content": message}]
         agent = self._agents.get(intent)

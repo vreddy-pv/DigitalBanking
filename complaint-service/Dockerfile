@@ -7,6 +7,11 @@ COPY . .
 RUN apk add --no-cache maven && \
     mvn clean package -DskipTests -q -pl complaint-service -am
 
+FROM eclipse-temurin:17-alpine AS dd-agent
+RUN apk add --no-cache curl && \
+    curl -fsSL -o /dd-java-agent.jar \
+         https://repo1.maven.org/maven2/com/datadoghq/dd-java-agent/1.37.0/dd-java-agent-1.37.0.jar
+
 FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
@@ -14,6 +19,7 @@ WORKDIR /app
 RUN apk add --no-cache curl
 
 COPY --from=builder /build/complaint-service/target/complaint-service-1.0.0.jar app.jar
+COPY --from=dd-agent /dd-java-agent.jar /dd-java-agent.jar
 
 EXPOSE 8011
 
