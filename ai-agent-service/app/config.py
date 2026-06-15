@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     model: str = "claude-sonnet-4-6"
     max_tokens: int = 4096
 
-    # Backend service URLs
+    # Backend service URLs (used by InvestigationWorker)
     auth_service_url: str = "http://localhost:8001"
     account_service_url: str = "http://localhost:8002"
     transaction_service_url: str = "http://localhost:8003"
@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     complaint_service_url: str = "http://localhost:8011"
     loan_service_url: str = "http://localhost:8012"
     ops_service_url: str = "http://localhost:8013"
+
+    # MCP Adapter layer URLs (used by specialist agents)
+    casa_mcp_url: str = "http://localhost:8014"
+    ml_mcp_url: str = "http://localhost:8015"
+    cul_mcp_url: str = "http://localhost:8016"
+    complaint_mcp_url: str = "http://localhost:8017"
 
     # RabbitMQ
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"

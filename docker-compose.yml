@@ -188,6 +188,18 @@ services:
       SPRING_CLOUD_GATEWAY_ROUTES_7_ID: ops-service
       SPRING_CLOUD_GATEWAY_ROUTES_7_URI: http://ops-service:8013
       SPRING_CLOUD_GATEWAY_ROUTES_7_PREDICATES_0: Path=/api/v1/ops/**
+      SPRING_CLOUD_GATEWAY_ROUTES_8_ID: casa-mcp-server
+      SPRING_CLOUD_GATEWAY_ROUTES_8_URI: http://casa-mcp-server:8014
+      SPRING_CLOUD_GATEWAY_ROUTES_8_PREDICATES_0: Path=/mcp/casa/**
+      SPRING_CLOUD_GATEWAY_ROUTES_9_ID: ml-mcp-server
+      SPRING_CLOUD_GATEWAY_ROUTES_9_URI: http://ml-mcp-server:8015
+      SPRING_CLOUD_GATEWAY_ROUTES_9_PREDICATES_0: Path=/mcp/ml/**
+      SPRING_CLOUD_GATEWAY_ROUTES_10_ID: cul-mcp-server
+      SPRING_CLOUD_GATEWAY_ROUTES_10_URI: http://cul-mcp-server:8016
+      SPRING_CLOUD_GATEWAY_ROUTES_10_PREDICATES_0: Path=/mcp/cul/**
+      SPRING_CLOUD_GATEWAY_ROUTES_11_ID: complaint-mcp-server
+      SPRING_CLOUD_GATEWAY_ROUTES_11_URI: http://complaint-mcp-server:8017
+      SPRING_CLOUD_GATEWAY_ROUTES_11_PREDICATES_0: Path=/mcp/complaint/**
     ports:
       - "8000:8000"
     healthcheck:
@@ -476,6 +488,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      casa-mcp-server:
+        condition: service_healthy
+      ml-mcp-server:
+        condition: service_healthy
+      cul-mcp-server:
+        condition: service_healthy
+      complaint-mcp-server:
+        condition: service_healthy
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       MODEL: claude-sonnet-4-6
@@ -490,6 +510,10 @@ services:
       REDIS_URL: redis://redis:6379
       SESSION_TTL_SECONDS: 1800
       MAX_CONVERSATION_TURNS: 10
+      CASA_MCP_URL: http://casa-mcp-server:8014
+      ML_MCP_URL: http://ml-mcp-server:8015
+      CUL_MCP_URL: http://cul-mcp-server:8016
+      COMPLAINT_MCP_URL: http://complaint-mcp-server:8017
     ports:
       - "8010:8010"
     healthcheck:
@@ -553,6 +577,95 @@ services:
       timeout: 5s
       retries: 10
       start_period: 60s
+    networks:
+      - banking-network
+
+  # ── MCP Adapter Layer ────────────────────────────────────────────────────────
+
+  casa-mcp-server:
+    build:
+      context: ./casa-mcp-server
+      dockerfile: Dockerfile
+    container_name: casa-mcp-server
+    depends_on:
+      account-service:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+    environment:
+      ACCOUNT_SERVICE_URL: http://account-service:8002
+      TRANSACTION_SERVICE_URL: http://transaction-service:8003
+    ports:
+      - "8014:8014"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8014/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - banking-network
+
+  ml-mcp-server:
+    build:
+      context: ./ml-mcp-server
+      dockerfile: Dockerfile
+    container_name: ml-mcp-server
+    depends_on:
+      loan-service:
+        condition: service_healthy
+    environment:
+      LOAN_SERVICE_URL: http://loan-service:8012
+    ports:
+      - "8015:8015"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8015/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - banking-network
+
+  cul-mcp-server:
+    build:
+      context: ./cul-mcp-server
+      dockerfile: Dockerfile
+    container_name: cul-mcp-server
+    depends_on:
+      loan-service:
+        condition: service_healthy
+    environment:
+      LOAN_SERVICE_URL: http://loan-service:8012
+    ports:
+      - "8016:8016"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8016/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - banking-network
+
+  complaint-mcp-server:
+    build:
+      context: ./complaint-mcp-server
+      dockerfile: Dockerfile
+    container_name: complaint-mcp-server
+    depends_on:
+      complaint-service:
+        condition: service_healthy
+    environment:
+      COMPLAINT_SERVICE_URL: http://complaint-service:8011
+    ports:
+      - "8017:8017"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8017/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - banking-network
 
